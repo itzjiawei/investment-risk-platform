@@ -35,8 +35,14 @@ app.add_middleware(
 class StressTestRequest(BaseModel):
     shocks: dict[str, float]
 
+class ChatMessage(BaseModel):
+    role: str
+    text: str
+
+
 class AiQuestionRequest(BaseModel):
     question: str
+    chat_history: list[ChatMessage] = []
 
 @app.get("/")
 def root():
@@ -124,5 +130,6 @@ def ask_ai_risk_analyst(
 ):
     return answer_ai_risk_question(
         portfolio_id,
-        request.question
+        request.question,
+        request.chat_history
     )

@@ -52,11 +52,22 @@ Write the answer with these sections:
     }
 
 
-def answer_ai_risk_question(portfolio_id: int, question: str):
+def answer_ai_risk_question(portfolio_id: int, question: str, chat_history=None):
     risk = calculate_portfolio_risk(portfolio_id)
     holdings = calculate_portfolio_holdings(portfolio_id)
     sector_exposure = calculate_sector_exposure(portfolio_id)
     risk_contribution = calculate_risk_contribution(portfolio_id)
+
+    chat_history = chat_history or []
+
+    recent_history = chat_history[-6:]
+
+    history_text = "\n".join(
+        [
+            f"{message.role.upper()}: {message.text}"
+            for message in recent_history
+        ]
+    )
 
     prompt = f"""
 You are an AI risk analyst for an investment portfolio.
@@ -72,6 +83,9 @@ Rules:
 - If the user asks whether to buy, sell, or increase a position, do not answer directly.
 - Instead, explain the relevant risk factors from the provided data.
 - Do not claim data is missing if the provided holdings, sector exposure, or risk contribution data contains relevant information.
+
+Previous Conversation:
+{history_text}
 
 User Question:
 {question}

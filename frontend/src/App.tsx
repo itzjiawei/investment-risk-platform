@@ -115,6 +115,14 @@ const PIE_COLORS = [
   "#ef4444",
 ];
 
+const SUGGESTED_AI_PROMPTS = [
+  "What is the biggest concentration risk?",
+  "Which assets contribute the most portfolio risk?",
+  "Summarize this portfolio for a risk committee.",
+  "What sectors should I monitor most closely?",
+  "Is this portfolio sufficiently diversified?",
+];
+
 function App() {
   const [activePage, setActivePage] = useState<"dashboard" | "performance">(
     "dashboard"
@@ -245,6 +253,7 @@ function App() {
   axios
     .post(`${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/ask-ai`, {
       question,
+      chat_history: chatMessages,
     })
     .then((res) => {
       setChatMessages((prev) => [
@@ -588,6 +597,18 @@ function App() {
               Ask natural-language questions about this portfolio’s risk, concentration,
               sector exposure, or risk drivers.
             </p>
+
+            <div className="suggested-prompts">
+              {SUGGESTED_AI_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => setAiQuestion(prompt)}
+                  type="button"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
 
             <div className="ai-question-row">
               <input
