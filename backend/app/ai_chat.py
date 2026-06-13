@@ -4,6 +4,7 @@ from app.analytics import (
     calculate_portfolio_holdings,
     calculate_sector_exposure,
     calculate_risk_contribution,
+    compare_portfolios,
 )
 
 
@@ -111,4 +112,38 @@ Answer:
         "portfolio_id": portfolio_id,
         "question": question,
         "answer": answer,
+    }
+
+def generate_ai_portfolio_comparison(portfolio_ids: list[int]):
+    comparison = compare_portfolios(portfolio_ids)
+
+    prompt = f"""
+You are an investment risk analyst.
+
+Compare the following portfolios using only the provided data.
+
+Rules:
+- Do not give buy/sell recommendations.
+- Do not give personalized financial advice.
+- Focus on risk, return, volatility, drawdown, VaR, and risk-adjusted performance.
+- Be concise and professional.
+- Use bullet points.
+- Keep it under 250 words.
+
+Portfolio Comparison Data:
+{comparison}
+
+Write the answer with these sections:
+1. Overall Comparison
+2. Risk-Return Tradeoff
+3. Key Risk Differences
+4. Monitoring Considerations
+"""
+
+    answer = ask_ollama(prompt)
+
+    return {
+        "portfolio_ids": portfolio_ids,
+        "comparison": comparison,
+        "summary": answer,
     }

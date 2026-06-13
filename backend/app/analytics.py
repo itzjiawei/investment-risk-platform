@@ -464,3 +464,24 @@ Write the answer with these sections:
         "portfolio_id": portfolio_id,
         "summary": summary,
     }
+
+def compare_portfolios(portfolio_ids: list[int]):
+    comparison = []
+
+    for portfolio_id in portfolio_ids:
+        risk = calculate_portfolio_risk(portfolio_id)
+
+        if "error" in risk:
+            continue
+
+        comparison.append({
+            "portfolio_id": portfolio_id,
+            "latest_value": risk["latest_value"],
+            "annualized_return": risk["annualized_return"],
+            "annualized_volatility": risk["annualized_volatility"],
+            "sharpe_ratio": risk["sharpe_ratio"],
+            "max_drawdown": risk["max_drawdown"],
+            "historical_var_95": risk["historical_var_95"],
+        })
+
+    return comparison

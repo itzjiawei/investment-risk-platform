@@ -380,3 +380,20 @@ td {
 .suggested-prompts button:hover {
   background: rgba(56, 189, 248, 0.18);
 }
+
+.comparison-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.comparison-controls select {
+  width: 420px;
+  max-width: 100%;
+}
+
+.comparison-controls .primary-button {
+  width: 180px;
+}

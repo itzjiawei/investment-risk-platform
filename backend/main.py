@@ -10,13 +10,15 @@ from app.analytics import (calculate_portfolio_value,
                            calculate_portfolio_value_duckdb,
                            compare_analytics_engines,
                            run_large_dataset_benchmark,
-                           generate_ai_risk_summary)
+                           generate_ai_risk_summary,
+                           compare_portfolios)
 
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from app.ai_chat import (
     generate_ai_risk_summary,
     answer_ai_risk_question,
+    generate_ai_portfolio_comparison,
 )
 
 app = FastAPI(title="Investment Risk Analytics API")
@@ -39,10 +41,12 @@ class ChatMessage(BaseModel):
     role: str
     text: str
 
-
 class AiQuestionRequest(BaseModel):
     question: str
     chat_history: list[ChatMessage] = []
+
+class PortfolioComparisonRequest(BaseModel):
+    portfolio_ids: list[int]
 
 @app.get("/")
 def root():
@@ -133,3 +137,11 @@ def ask_ai_risk_analyst(
         request.question,
         request.chat_history
     )
+
+@app.post("/api/portfolio/compare")
+def compare_portfolio_metrics(request: PortfolioComparisonRequest):
+    return compare_portfolios(request.portfolio_ids)
+
+@app.post("/api/portfolio/compare-ai")
+def compare_portfolios_with_ai(request: PortfolioComparisonRequest):
+    return generate_ai_portfolio_comparison(request.portfolio_ids)
