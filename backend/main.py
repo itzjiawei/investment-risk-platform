@@ -9,10 +9,15 @@ from app.analytics import (calculate_portfolio_value,
                            run_custom_stress_test,
                            calculate_portfolio_value_duckdb,
                            compare_analytics_engines,
-                           run_large_dataset_benchmark)
+                           run_large_dataset_benchmark,
+                           generate_ai_risk_summary)
 
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from app.ai_chat import (
+    generate_ai_risk_summary,
+    answer_ai_risk_question,
+)
 
 app = FastAPI(title="Investment Risk Analytics API")
 
@@ -29,6 +34,9 @@ app.add_middleware(
 
 class StressTestRequest(BaseModel):
     shocks: dict[str, float]
+
+class AiQuestionRequest(BaseModel):
+    question: str
 
 @app.get("/")
 def root():
@@ -99,3 +107,22 @@ def get_engine_comparison(portfolio_id: int):
 @app.get("/api/performance/large-benchmark")
 def get_large_dataset_benchmark():
     return run_large_dataset_benchmark()
+
+@app.post("/api/portfolio/{portfolio_id}/ai-risk-summary")
+def get_ai_risk_summary(portfolio_id: int):
+    return generate_ai_risk_summary(portfolio_id)
+
+@app.post("/api/portfolio/{portfolio_id}/ai-risk-summary")
+def get_ai_risk_summary(portfolio_id: int):
+    return generate_ai_risk_summary(portfolio_id)
+
+
+@app.post("/api/portfolio/{portfolio_id}/ask-ai")
+def ask_ai_risk_analyst(
+    portfolio_id: int,
+    request: AiQuestionRequest
+):
+    return answer_ai_risk_question(
+        portfolio_id,
+        request.question
+    )

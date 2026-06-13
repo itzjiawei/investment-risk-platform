@@ -259,3 +259,49 @@ td {
   background: #38bdf8;
   color: #020617;
 }
+
+.ai-summary-box {
+  margin-top: 20px;
+  background: #020617;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.ai-summary-box pre {
+  margin: 0;
+  white-space: pre-wrap;
+  color: #e5eefb;
+  font-family: inherit;
+  line-height: 1.7;
+}
+
+.ai-question-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.ai-question-row input {
+  flex: 1;
+  background: #020617;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: white;
+  font-size: 15px;
+  outline: none;
+}
+
+.ai-question-label {
+  color: #7dd3fc;
+  font-weight: 800;
+  margin-top: 0;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 900px) {
+  .ai-question-row {
+    flex-direction: column;
+  }
+}

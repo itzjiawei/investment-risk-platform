@@ -84,6 +84,17 @@ type StressTestResult = {
   }[];
 };
 
+type AiRiskSummary = {
+  portfolio_id: number;
+  summary: string;
+};
+
+type AiQuestionAnswer = {
+  portfolio_id: number;
+  question: string;
+  answer: string;
+};
+
 const API_BASE_URL = "http://127.0.0.1:8000";
 
 function formatCurrency(value: number) {
@@ -130,6 +141,13 @@ function App() {
 
   const [stressResult, setStressResult] =
     useState<StressTestResult | null>(null);
+
+  const [aiSummary, setAiSummary] = useState<AiRiskSummary | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiAnswer, setAiAnswer] = useState<AiQuestionAnswer | null>(null);
+  const [aiQuestionLoading, setAiQuestionLoading] = useState(false);
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/portfolios`).then((res) => {
@@ -187,6 +205,38 @@ function App() {
         setStressResult(res.data);
       });
   }
+
+  function generateAiRiskSummary() {
+  setAiLoading(true);
+  setAiSummary(null);
+
+  axios
+    .post(`${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/ai-risk-summary`)
+    .then((res) => {
+      setAiSummary(res.data);
+    })
+    .finally(() => {
+      setAiLoading(false);
+    });
+}
+
+  function askAiRiskAnalyst() {
+  if (!aiQuestion.trim()) return;
+
+  setAiQuestionLoading(true);
+  setAiAnswer(null);
+
+  axios
+    .post(`${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/ask-ai`, {
+      question: aiQuestion,
+    })
+    .then((res) => {
+      setAiAnswer(res.data);
+    })
+    .finally(() => {
+      setAiQuestionLoading(false);
+    });
+}
 
   return (
     <main className="page">
@@ -472,6 +522,80 @@ function App() {
                   <p>Impact %</p>
                   <h3>{formatPercent(stressResult.impact_percent)}</h3>
                 </div>
+              </div>
+            )}
+          </section>
+
+          <section className="table-card">
+            <div className="chart-header">
+              <div>
+                <p className="eyebrow">AI Analyst</p>
+                <h2>AI Risk Summary</h2>
+              </div>
+            </div>
+
+            <p className="subtitle">
+              Generate a natural-language portfolio risk summary using the calculated risk
+              metrics, sector exposure, holdings, and risk contribution data.
+            </p>
+
+            <button
+              className="primary-button"
+              onClick={generateAiRiskSummary}
+              disabled={aiLoading}
+            >
+              {aiLoading ? "Generating Summary..." : "Generate AI Risk Summary"}
+            </button>
+
+            {aiSummary && (
+              <div className="ai-summary-box">
+                <pre>{aiSummary.summary}</pre>
+              </div>
+            )}
+          </section>
+
+          <section className="table-card">
+            <div className="chart-header">
+              <div>
+                <p className="eyebrow">AI Copilot</p>
+                <h2>Ask AI Risk Analyst</h2>
+              </div>
+            </div>
+
+            <p className="subtitle">
+              Ask natural-language questions about this portfolio’s risk, concentration,
+              sector exposure, or risk drivers.
+            </p>
+
+            <div className="ai-question-row">
+              <input
+                type="text"
+                value={aiQuestion}
+                onChange={(e) => setAiQuestion(e.target.value)}
+                placeholder="e.g. What is the biggest concentration risk?"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    askAiRiskAnalyst();
+                  }
+                }}
+              />
+
+              <button
+                className="primary-button"
+                onClick={askAiRiskAnalyst}
+                disabled={aiQuestionLoading}
+              >
+                {aiQuestionLoading ? "Thinking..." : "Ask"}
+              </button>
+            </div>
+
+            {aiAnswer && (
+              <div className="ai-summary-box">
+                <p className="ai-question-label">Question</p>
+                <p>{aiAnswer.question}</p>
+
+                <p className="ai-question-label">Answer</p>
+                <pre>{aiAnswer.answer}</pre>
               </div>
             )}
           </section>
