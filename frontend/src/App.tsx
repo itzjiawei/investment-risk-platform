@@ -1,24 +1,11 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  BarChart,
-  Bar,
-  CartesianGrid,
-} from "recharts";
 import "./App.css";
 import PerformanceLab from "./pages/PerformanceLab";
 import PortfolioComparisonPage from "./pages/PortfolioComparisonPage";
 import AiCopilotPage from "./pages/AiCopilotPage";
+import AnalyticsPage from "./pages/AnalyticsPage";
+import DashboardPage from "./pages/DashboardPage";
 
 type Portfolio = {
   portfolio_id: number;
@@ -98,17 +85,8 @@ function formatPercent(value: number) {
   return `${(value * 100).toFixed(2)}%`;
 }
 
-const PIE_COLORS = [
-  "#38bdf8",
-  "#22c55e",
-  "#f97316",
-  "#eab308",
-  "#a855f7",
-  "#ef4444",
-];
-
 function App() {
-  const [activePage, setActivePage] = useState<"dashboard" | "performance" | "comparison"| "AI">(
+  const [activePage, setActivePage] = useState<"dashboard" | "performance" | "comparison"| "AI" | "analytics">(
     "dashboard"
   );
 
@@ -220,280 +198,42 @@ function App() {
         >
           AI Copilot
         </button>
+
+        <button
+          className={activePage === "analytics" ? "active-tab" : ""}
+          onClick={() => setActivePage("analytics")}
+        >
+          Analytics
+        </button>
       </div>
 
       {activePage === "performance" && <PerformanceLab />}
       {activePage === "comparison" && <PortfolioComparisonPage />}
       {activePage === "AI" && <AiCopilotPage />}
+      {activePage === "analytics" && (
+        <AnalyticsPage
+          holdings={holdings}
+          riskContribution={riskContribution}
+          stressShocks={stressShocks}
+          stressResult={stressResult}
+          setStressShocks={setStressShocks}
+          runStressTest={runStressTest}
+          formatCurrency={formatCurrency}
+          formatPercent={formatPercent}
+        />
+      )}
 
       {activePage === "dashboard" && (
-        <>
-          <section className="hero">
-            <p className="eyebrow">Investment Risk Analytics</p>
-            <h1>Portfolio Risk Dashboard</h1>
-            <p className="subtitle">
-              Monitor portfolio value, returns, volatility and risk indicators
-              from scalable analytics APIs.
-            </p>
-          </section>
-
-          <section className="toolbar">
-            <label>Portfolio</label>
-            <select
-              value={selectedPortfolioId}
-              onChange={(e) => setSelectedPortfolioId(Number(e.target.value))}
-            >
-              {portfolios.map((portfolio) => (
-                <option
-                  key={portfolio.portfolio_id}
-                  value={portfolio.portfolio_id}
-                >
-                  {portfolio.portfolio_name}
-                </option>
-              ))}
-            </select>
-          </section>
-
-          {risk && (
-            <section className="metrics-grid">
-              <div className="metric-card">
-                <p>Latest Value</p>
-                <h2>{formatCurrency(risk.latest_value)}</h2>
-              </div>
-
-              <div className="metric-card">
-                <p>Annualized Return</p>
-                <h2>{formatPercent(risk.annualized_return)}</h2>
-              </div>
-
-              <div className="metric-card">
-                <p>Annualized Volatility</p>
-                <h2>{formatPercent(risk.annualized_volatility)}</h2>
-              </div>
-
-              <div className="metric-card">
-                <p>Sharpe Ratio</p>
-                <h2>{risk.sharpe_ratio}</h2>
-              </div>
-
-              <div className="metric-card">
-                <p>Max Drawdown</p>
-                <h2>{formatPercent(risk.max_drawdown)}</h2>
-              </div>
-
-              <div className="metric-card">
-                <p>Historical VaR 95%</p>
-                <h2>{formatPercent(risk.historical_var_95)}</h2>
-              </div>
-            </section>
-          )}
-
-          <section className="chart-card">
-            <div className="chart-header">
-              <div>
-                <p className="eyebrow">Performance</p>
-                <h2>Portfolio Value Over Time</h2>
-              </div>
-            </div>
-
-            <div className="chart-wrapper">
-              <ResponsiveContainer width="100%" height={380}>
-                <LineChart data={returns}>
-                  <XAxis
-                    dataKey="date"
-                    minTickGap={40}
-                    tick={{ fill: "#94a3b8" }}
-                  />
-                  <YAxis
-                    tick={{ fill: "#94a3b8" }}
-                    tickFormatter={(value) => `$${Math.round(value / 1000)}k`}
-                  />
-                  <Tooltip
-                    formatter={(value) => [
-                      formatCurrency(Number(value)),
-                      "Portfolio Value",
-                    ]}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="portfolio_value"
-                    stroke="#38bdf8"
-                    strokeWidth={3}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          <section className="table-card">
-            <div className="chart-header">
-              <div>
-                <p className="eyebrow">Composition</p>
-                <h2>Portfolio Holdings</h2>
-              </div>
-            </div>
-
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Ticker</th>
-                    <th>Name</th>
-                    <th>Sector</th>
-                    <th>Country</th>
-                    <th>Quantity</th>
-                    <th>Latest Price</th>
-                    <th>Market Value</th>
-                    <th>Weight</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {holdings.map((holding) => (
-                    <tr key={holding.ticker}>
-                      <td>{holding.ticker}</td>
-                      <td>{holding.name}</td>
-                      <td>{holding.sector}</td>
-                      <td>{holding.country}</td>
-                      <td>{holding.quantity.toLocaleString()}</td>
-                      <td>{formatCurrency(holding.latest_price)}</td>
-                      <td>{formatCurrency(holding.market_value)}</td>
-                      <td>{formatPercent(holding.weight)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="chart-card" style={{ marginTop: "24px" }}>
-            <div className="chart-header">
-              <div>
-                <p className="eyebrow">Allocation</p>
-                <h2>Sector Exposure</h2>
-              </div>
-            </div>
-
-            <div className="chart-wrapper">
-              <ResponsiveContainer width="100%" height={400}>
-                <PieChart>
-                  <Pie
-                    data={sectorExposure}
-                    dataKey="market_value"
-                    nameKey="sector"
-                    outerRadius={140}
-                    label={(props) =>
-                      `${((props.percent ?? 0) * 100).toFixed(1)}%`
-                    }
-                  >
-                    {sectorExposure.map((_, index) => (
-                      <Cell
-                        key={index}
-                        fill={PIE_COLORS[index % PIE_COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
-
-                  <Tooltip
-                    formatter={(value) => [
-                      formatCurrency(Number(value)),
-                      "Market Value",
-                    ]}
-                  />
-
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          <section className="chart-card" style={{ marginTop: "24px" }}>
-            <div className="chart-header">
-              <div>
-                <p className="eyebrow">Risk Attribution</p>
-                <h2>Risk Contribution by Asset</h2>
-              </div>
-            </div>
-
-            <div className="chart-wrapper">
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={riskContribution} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" />
-
-                  <XAxis
-                    type="number"
-                    tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
-                  />
-
-                  <YAxis dataKey="ticker" type="category" width={80} />
-
-                  <Tooltip
-                    formatter={(value) => [
-                      `${(Number(value) * 100).toFixed(2)}%`,
-                      "Risk Contribution",
-                    ]}
-                  />
-
-                  <Bar dataKey="risk_contribution" fill="#38bdf8" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          <section className="table-card">
-            <div className="chart-header">
-              <div>
-                <p className="eyebrow">Scenario Analysis</p>
-                <h2>Custom Stress Test</h2>
-              </div>
-            </div>
-
-            <div className="stress-grid">
-              {Object.entries(stressShocks).map(([sector, value]) => (
-                <div className="stress-input" key={sector}>
-                  <label>{sector}</label>
-                  <input
-                    type="number"
-                    value={value}
-                    onChange={(e) =>
-                      setStressShocks({
-                        ...stressShocks,
-                        [sector]: Number(e.target.value),
-                      })
-                    }
-                  />
-                  <span>%</span>
-                </div>
-              ))}
-            </div>
-
-            <button className="primary-button" onClick={runStressTest}>
-              Run Stress Test
-            </button>
-
-            {stressResult && (
-              <div className="stress-result">
-                <div>
-                  <p>Original Value</p>
-                  <h3>{formatCurrency(stressResult.original_value)}</h3>
-                </div>
-                <div>
-                  <p>Stressed Value</p>
-                  <h3>{formatCurrency(stressResult.stressed_value)}</h3>
-                </div>
-                <div>
-                  <p>Estimated Impact</p>
-                  <h3>{formatCurrency(stressResult.impact_value)}</h3>
-                </div>
-                <div>
-                  <p>Impact %</p>
-                  <h3>{formatPercent(stressResult.impact_percent)}</h3>
-                </div>
-              </div>
-            )}
-          </section>
-        </>
+        <DashboardPage
+          portfolios={portfolios}
+          selectedPortfolioId={selectedPortfolioId}
+          setSelectedPortfolioId={setSelectedPortfolioId}
+          risk={risk}
+          returns={returns}
+          sectorExposure={sectorExposure}
+          formatCurrency={formatCurrency}
+          formatPercent={formatPercent}
+        />
       )}
     </main>
   )};
