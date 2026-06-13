@@ -305,3 +305,56 @@ td {
     flex-direction: column;
   }
 }
+
+.chat-box {
+  margin-top: 20px;
+  background: #020617;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  padding: 18px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  height: 500px;
+  overflow-y: auto;
+}
+
+.chat-empty {
+  color: #94a3b8;
+  margin: 0;
+}
+
+.chat-message {
+  padding: 14px 16px;
+  border-radius: 14px;
+  max-width: 85%;
+}
+
+.user-message {
+  align-self: flex-end;
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.ai-message {
+  align-self: flex-start;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.chat-role {
+  margin: 0 0 6px;
+  color: #7dd3fc;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.chat-message pre {
+  margin: 0;
+  white-space: pre-wrap;
+  color: #e5eefb;
+  font-family: inherit;
+  line-height: 1.6;
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import {
   LineChart,
@@ -89,10 +89,9 @@ type AiRiskSummary = {
   summary: string;
 };
 
-type AiQuestionAnswer = {
-  portfolio_id: number;
-  question: string;
-  answer: string;
+type ChatMessage = {
+  role: "user" | "ai";
+  text: string;
 };
 
 const API_BASE_URL = "http://127.0.0.1:8000";
@@ -146,8 +145,9 @@ function App() {
   const [aiLoading, setAiLoading] = useState(false);
 
   const [aiQuestion, setAiQuestion] = useState("");
-  const [aiAnswer, setAiAnswer] = useState<AiQuestionAnswer | null>(null);
   const [aiQuestionLoading, setAiQuestionLoading] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/portfolios`).then((res) => {
@@ -196,6 +196,12 @@ function App() {
       });
   }, [selectedPortfolioId]);
 
+  useEffect(() => {
+  chatEndRef.current?.scrollIntoView({
+    behavior: "smooth",
+  });
+}, [chatMessages, aiQuestionLoading]);
+
   function runStressTest() {
     axios
       .post(`${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/stress-test`, {
@@ -221,17 +227,33 @@ function App() {
 }
 
   function askAiRiskAnalyst() {
-  if (!aiQuestion.trim()) return;
+  const question = aiQuestion.trim();
 
+  if (!question) return;
+
+  setChatMessages((prev) => [
+    ...prev,
+    {
+      role: "user",
+      text: question,
+    },
+  ]);
+
+  setAiQuestion("");
   setAiQuestionLoading(true);
-  setAiAnswer(null);
 
   axios
     .post(`${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/ask-ai`, {
-      question: aiQuestion,
+      question,
     })
     .then((res) => {
-      setAiAnswer(res.data);
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "ai",
+          text: res.data.answer,
+        },
+      ]);
     })
     .finally(() => {
       setAiQuestionLoading(false);
@@ -589,15 +611,35 @@ function App() {
               </button>
             </div>
 
-            {aiAnswer && (
-              <div className="ai-summary-box">
-                <p className="ai-question-label">Question</p>
-                <p>{aiAnswer.question}</p>
+            <div className="chat-box">
+              {chatMessages.length === 0 && (
+                <p className="chat-empty">
+                  Try asking: “What is the biggest concentration risk?”
+                </p>
+              )}
 
-                <p className="ai-question-label">Answer</p>
-                <pre>{aiAnswer.answer}</pre>
-              </div>
-            )}
+              {chatMessages.map((message, index) => (
+                <div
+                  key={index}
+                  className={`chat-message ${
+                    message.role === "user" ? "user-message" : "ai-message"
+                  }`}
+                >
+                  <p className="chat-role">
+                    {message.role === "user" ? "You" : "AI Risk Analyst"}
+                  </p>
+                  <pre>{message.text}</pre>
+                </div>
+              ))}
+
+              {aiQuestionLoading && (
+                <div className="chat-message ai-message">
+                  <p className="chat-role">AI Risk Analyst</p>
+                  <pre>Thinking...</pre>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
           </section>
         </>
       )}
