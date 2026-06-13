@@ -19,3 +19,5 @@ data/large_holdings.csv
 
 # MacOS
 .DS_Store
+
+data/*.csv
