@@ -1,0 +1,261 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #07111f;
+  color: #e5eefb;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 48px;
+}
+
+.hero {
+  max-width: 900px;
+  margin-bottom: 32px;
+}
+
+.eyebrow {
+  color: #7dd3fc;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+h1 {
+  font-size: 48px;
+  margin: 0;
+}
+
+.subtitle {
+  color: #9fb0c7;
+  font-size: 18px;
+  max-width: 760px;
+  line-height: 1.6;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 18px;
+  border-radius: 18px;
+  margin-bottom: 24px;
+}
+
+.toolbar label {
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+select {
+  background: #020617;
+  color: white;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 15px;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 20px;
+  padding: 22px;
+}
+
+.metric-card p {
+  color: #94a3b8;
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.metric-card h2 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.chart-card {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 24px;
+  padding: 24px;
+}
+
+.chart-header h2 {
+  margin: 0 0 20px;
+}
+
+.chart-wrapper {
+  width: 100%;
+  height: 380px;
+}
+
+@media (max-width: 900px) {
+  .page {
+    padding: 24px;
+  }
+
+  h1 {
+    font-size: 36px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.table-card {
+  margin-top: 24px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 24px;
+  padding: 24px;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 14px 12px;
+  text-align: left;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+th {
+  color: #94a3b8;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+td {
+  color: #e5eefb;
+  font-size: 14px;
+}
+
+.chart-header h2 {
+  color: #e5eefb;
+}
+
+.stress-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.stress-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #020617;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.stress-input label {
+  color: #cbd5e1;
+  font-size: 13px;
+  flex: 1;
+}
+
+.stress-input input {
+  width: 72px;
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 16px;
+  outline: none;
+}
+
+.primary-button {
+  background: #38bdf8;
+  color: #020617;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.stress-result {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.stress-result div {
+  background: #020617;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.stress-result p {
+  color: #94a3b8;
+  margin: 0 0 8px;
+}
+
+.stress-result h3 {
+  margin: 0;
+  color: #e5eefb;
+}
+
+@media (max-width: 900px) {
+  .stress-grid,
+  .stress-result {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.nav-tabs button {
+  background: rgba(15, 23, 42, 0.9);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nav-tabs .active-tab {
+  background: #38bdf8;
+  color: #020617;
+}
