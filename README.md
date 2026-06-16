@@ -1,128 +1,119 @@
 # Investment Risk Analytics Platform
 
-A full-stack portfolio risk analytics platform built with React, FastAPI, PostgreSQL, Docker, Pandas, and DuckDB.
+A full-stack investment risk analytics platform that provides portfolio risk monitoring, stress testing, AI-powered risk analysis, portfolio comparison, and analytics benchmarking.
 
 ## Overview
 
-This project provides portfolio managers and risk analysts with portfolio valuation, risk metrics, stress testing, and performance benchmarking capabilities.
+This platform helps investment professionals analyze portfolio risk through:
 
-The platform demonstrates both financial analytics and scalable data engineering concepts.
-
----
+- Portfolio risk metrics
+- Portfolio performance tracking
+- Sector exposure analysis
+- Risk contribution attribution
+- Custom stress testing
+- AI-powered portfolio analysis
+- Portfolio comparison
+- Analytics engine benchmarking
 
 ## Features
 
-### Portfolio Analytics
+### Dashboard
 
-- Portfolio valuation over time
-- Daily and annualized returns
-- Annualized volatility
-- Sharpe Ratio
-- Historical Value at Risk (VaR)
-- Maximum Drawdown
+- Portfolio selection
+- Portfolio value tracking
+- Annualized return analysis
+- Volatility analysis
+- Sharpe ratio calculation
+- Maximum drawdown monitoring
+- Historical VaR monitoring
+- Sector allocation visualization
 
-### Portfolio Composition
+### Analytics
 
-- Holdings breakdown
-- Sector exposure analysis
-- Risk contribution by asset
-
-### Scenario Analysis
-
+- Holdings analysis
+- Risk contribution attribution
 - Custom stress testing
-- Sector-specific shock simulations
-- Portfolio impact estimation
+- Scenario analysis
 
-### Performance Engineering
+### AI Copilot
 
-- Pandas analytics engine
-- DuckDB analytics engine
-- Large dataset benchmarking
-- Performance comparison dashboard
+- AI-generated risk summaries
+- Natural language portfolio Q&A
+- Conversation memory
+- Portfolio insights
 
----
+### Portfolio Comparison
 
-## Tech Stack
+- Side-by-side portfolio comparison
+- Risk metric comparison
+- AI-generated portfolio comparison analysis
 
-### Frontend
+### Performance Lab
 
-- React
-- TypeScript
-- Axios
-- Recharts
-
-### Backend
-
-- FastAPI
-- Pandas
-- DuckDB
-- SQLAlchemy
-
-### Database
-
-- PostgreSQL
-- Docker
+- Analytics engine benchmarking
+- PostgreSQL performance testing
+- DuckDB performance testing
+- Query execution comparison
 
 ---
 
 ## Architecture
 
-```text
-React Dashboard
-       |
-       v
-FastAPI APIs
-       |
-       v
-PostgreSQL
-       |
-       +---- Pandas Analytics
-       |
-       +---- DuckDB Analytics
-```
+Frontend:
+- React
+- TypeScript
+- Vite
+- Recharts
+- Axios
+
+Backend:
+- FastAPI
+- Python
+
+Analytics:
+- Pandas
+- NumPy
+
+Databases:
+- PostgreSQL
+- DuckDB
+
+AI:
+- Ollama
+- Llama 3.2
 
 ---
 
-## Example Analytics
+## System Architecture
 
-### Risk Metrics
-
-- Annualized Return
-- Annualized Volatility
-- Sharpe Ratio
-- Historical VaR (95%)
-- Maximum Drawdown
-
-### Stress Testing
-
-Example:
-
-```text
-Technology: -20%
-Semiconductors: -30%
-ETF: -15%
-```
-
-Portfolio impact is calculated and visualized.
+See architecture diagrams below.
 
 ---
 
-## Performance Benchmark
+## Project Structure
 
-Benchmarking was performed using a synthetic dataset containing approximately:
+```text
+investment-risk-platform/
 
-- 1,000 assets
-- 300 holdings
-- 1,000,000 historical price records
+backend/
+├── app/
+│   ├── main.py
+│   ├── analytics.py
+│   ├── ai_service.py
+│   ├── ai_chat.py
+│   ├── database.py
+│   └── data_loader.py
 
-Example benchmark:
-
-| Engine | Time |
-|----------|----------|
-| Pandas | 0.138s |
-| DuckDB | 0.071s |
-
-DuckDB achieved approximately 1.9x speedup for analytical workloads.
+frontend/
+├── src/
+│   ├── pages/
+│   │   ├── DashboardPage.tsx
+│   │   ├── AnalyticsPage.tsx
+│   │   ├── AiCopilotPage.tsx
+│   │   ├── PortfolioComparisonPage.tsx
+│   │   └── PerformanceLab.tsx
+│   └── App.tsx
+```
 
 ---
 
@@ -132,36 +123,90 @@ DuckDB achieved approximately 1.9x speedup for analytical workloads.
 
 ```bash
 cd backend
-python -m uvicorn main:app --reload
+
+python -m venv .venv
+source .venv/bin/activate
+
+pip install -r requirements.txt
+
+uvicorn app.main:app --reload
+```
+
+Backend runs on:
+
+```text
+http://127.0.0.1:8000
 ```
 
 ### Frontend
 
 ```bash
 cd frontend
+
 npm install
+
 npm run dev
 ```
 
-### Database
+Frontend runs on:
 
-```bash
-docker compose up -d
+```text
+http://localhost:5173
 ```
 
 ---
 
-## Future Enhancements
+## Example Capabilities
 
-- AI Risk Analyst
-- Portfolio Optimization
-- Real Market Data Integration
-- Authentication & User Accounts
-- Cloud Deployment
-- Multi-portfolio Management
+### Risk Monitoring
+
+- Portfolio value tracking
+- Volatility analysis
+- Drawdown analysis
+- Historical VaR analysis
+
+### Stress Testing
+
+Example scenario:
+
+```text
+Technology      -20%
+Semiconductors  -30%
+Financials      -10%
+ETF             -15%
+```
+
+### AI Risk Analysis
+
+Example questions:
+
+- What is the biggest concentration risk?
+- Which assets contribute the most risk?
+- Is this portfolio sufficiently diversified?
+- Summarize this portfolio for a risk committee.
+
+---
+
+## Future Roadmap
+
+### Phase 1
+- Portfolio risk analytics
+- AI risk analyst
+- Portfolio comparison
+
+### Phase 2
+- PDF report generation
+- Real market data integration
+- Historical backtesting
+
+### Phase 3
+- Multi-user support
+- Portfolio optimization
+- Compliance copilot
+- Investment intelligence platform
 
 ---
 
 ## Author
 
-Chen Jiawei
+Jia Wei
