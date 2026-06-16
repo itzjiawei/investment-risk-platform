@@ -86,7 +86,28 @@ AI:
 
 ## System Architecture
 
-See architecture diagrams below.
+```mermaid
+flowchart TD
+
+    A[React Frontend]
+
+    A --> B[FastAPI Backend]
+
+    B --> C[Analytics Engine]
+    B --> D[AI Services]
+
+    C --> E[PostgreSQL]
+    C --> F[DuckDB]
+
+    D --> G[Ollama]
+    G --> H[Llama 3.2]
+
+    A --> A1[Dashboard]
+    A --> A2[Analytics]
+    A --> A3[AI Copilot]
+    A --> A4[Portfolio Comparison]
+    A --> A5[Performance Lab]
+```
 
 ---
 
