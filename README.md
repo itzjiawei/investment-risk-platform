@@ -87,26 +87,49 @@ AI:
 ## System Architecture
 
 ```mermaid
-flowchart TD
+flowchart LR
 
-    A[React Frontend]
+    subgraph Frontend
+        D[Dashboard]
+        AN[Analytics]
+        AI[AI Copilot]
+        PC[Portfolio Comparison]
+        PL[Performance Lab]
+    end
 
-    A --> B[FastAPI Backend]
+    subgraph Backend
+        API[FastAPI API]
+        AE[Analytics Engine]
+        CHAT[AI Chat Service]
+    end
 
-    B --> C[Analytics Engine]
-    B --> D[AI Services]
+    subgraph Data
+        PG[(PostgreSQL)]
+        DD[(DuckDB)]
+    end
 
-    C --> E[PostgreSQL]
-    C --> F[DuckDB]
+    subgraph AI_System
+        O[Ollama]
+        L[Llama 3.2]
+    end
 
-    D --> G[Ollama]
-    G --> H[Llama 3.2]
+    D --> API
+    AN --> API
+    AI --> API
+    PC --> API
+    PL --> API
 
-    A --> A1[Dashboard]
-    A --> A2[Analytics]
-    A --> A3[AI Copilot]
-    A --> A4[Portfolio Comparison]
-    A --> A5[Performance Lab]
+    API --> AE
+    API --> CHAT
+
+    AE --> PG
+    AE --> DD
+
+    PL -. Benchmark .-> PG
+    PL -. Benchmark .-> DD
+
+    CHAT --> O
+    O --> L
 ```
 
 ---
