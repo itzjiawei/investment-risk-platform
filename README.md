@@ -10,6 +10,7 @@ This platform helps investment professionals analyze portfolio risk through:
 
 - Portfolio risk metrics
 - Portfolio performance tracking
+- Free market data refresh with yfinance
 - Sector exposure analysis
 - Risk contribution attribution
 - Custom stress testing
@@ -22,6 +23,7 @@ This platform helps investment professionals analyze portfolio risk through:
 ### Dashboard
 
 - Portfolio selection
+- Market data refresh
 - Portfolio value tracking
 - Annualized return analysis
 - Volatility analysis
@@ -86,6 +88,10 @@ Databases:
 - PostgreSQL
 - DuckDB
 
+Market Data:
+- yfinance
+- Yahoo Finance
+
 AI:
 - Ollama
 - Llama 3.2
@@ -116,6 +122,11 @@ flowchart LR
         DD[(DuckDB)]
     end
 
+    subgraph Market_Data
+        YF[yfinance]
+        YH[Yahoo Finance]
+    end
+
     subgraph AI_System
         O[Ollama]
         L[Llama 3.2]
@@ -129,9 +140,12 @@ flowchart LR
 
     API --> AE
     API --> CHAT
+    API --> YF
 
     AE --> PG
     AE --> DD
+    YF --> YH
+    YF --> PG
 
     PL -. Benchmark .-> PG
     PL -. Benchmark .-> DD
@@ -188,6 +202,42 @@ Backend runs on:
 
 ```text
 http://127.0.0.1:8000
+```
+
+### Market Data Refresh
+
+The platform ships with demo CSV data so the dashboard works locally without external services. You can optionally refresh portfolio prices from Yahoo Finance through the free `yfinance` package.
+
+Run the backend, then use the dashboard button:
+
+```text
+Refresh Market Data
+```
+
+Or call the API directly:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/market-data/refresh
+```
+
+The dashboard refresh button updates only the selected portfolio's tickers. You can call the same portfolio-specific refresh endpoint directly:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/portfolio/1/market-data/refresh
+```
+
+The refresh process looks up tickers already used by the selected portfolio holdings, downloads recent daily close prices with yfinance, inserts only new price rows where possible, updates existing dates, and reports any failed tickers without stopping the whole refresh.
+
+The global refresh endpoint remains available if you want to refresh all held tickers:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/market-data/refresh
+```
+
+You can inspect the latest stored market data status with:
+
+```bash
+curl http://127.0.0.1:8000/api/market-data/status
 ```
 
 ### Backend Tests

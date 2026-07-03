@@ -49,6 +49,9 @@ type DashboardPageProps = {
   formatCurrency: (value: number) => string;
   formatPercent: (value: number) => string;
   downloadRiskReport: () => void;
+  refreshMarketData: () => void;
+  marketDataLoading: boolean;
+  marketDataMessage: string;
 };
 
 const PIE_COLORS = [
@@ -70,6 +73,9 @@ function DashboardPage({
   formatCurrency,
   formatPercent,
   downloadRiskReport,
+  refreshMarketData,
+  marketDataLoading,
+  marketDataMessage,
 }: DashboardPageProps) {
   return (
     <>
@@ -102,14 +108,29 @@ function DashboardPage({
           </select>
         </div>
 
-        <button
-          className="primary-button"
-          type="button"
-          onClick={downloadRiskReport}
-        >
-          Download Risk Report
-        </button>
+        <div className="toolbar-actions">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={refreshMarketData}
+            disabled={marketDataLoading}
+          >
+            {marketDataLoading ? "Updating Prices..." : "Update Portfolio Prices"}
+          </button>
+
+          <button
+            className="primary-button"
+            type="button"
+            onClick={downloadRiskReport}
+          >
+            Download Risk Report
+          </button>
+        </div>
       </section>
+
+      {marketDataMessage && (
+        <p className="status-message">{marketDataMessage}</p>
+      )}
 
       {risk && (
         <section className="metrics-grid">

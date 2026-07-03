@@ -73,6 +73,16 @@ type StressTestResult = {
   }[];
 };
 
+type MarketDataRefreshResult = {
+  updated_tickers: string[];
+  failed_tickers: {
+    ticker: string;
+    reason: string;
+  }[];
+  rows_inserted: number;
+  message: string;
+};
+
 const API_BASE_URL = "http://127.0.0.1:8000";
 
 function formatCurrency(value: number) {
@@ -112,6 +122,8 @@ function App() {
 
   const [stressResult, setStressResult] =
     useState<StressTestResult | null>(null);
+  const [marketDataLoading, setMarketDataLoading] = useState(false);
+  const [marketDataMessage, setMarketDataMessage] = useState("");
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/portfolios`).then((res) => {
@@ -119,15 +131,15 @@ function App() {
     });
   }, []);
 
-  useEffect(() => {
+  function loadDashboardData(portfolioId: number) {
     axios
-      .get(`${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/risk`)
+      .get(`${API_BASE_URL}/api/portfolio/${portfolioId}/risk`)
       .then((res) => {
         setRisk(res.data);
       });
 
     axios
-      .get(`${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/returns`)
+      .get(`${API_BASE_URL}/api/portfolio/${portfolioId}/returns`)
       .then((res) => {
         const formattedReturns = res.data.map((point: ReturnPoint) => ({
           ...point,
@@ -138,26 +150,26 @@ function App() {
       });
 
     axios
-      .get(`${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/holdings`)
+      .get(`${API_BASE_URL}/api/portfolio/${portfolioId}/holdings`)
       .then((res) => {
         setHoldings(res.data);
       });
 
     axios
-      .get(
-        `${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/sector-exposure`
-      )
+      .get(`${API_BASE_URL}/api/portfolio/${portfolioId}/sector-exposure`)
       .then((res) => {
         setSectorExposure(res.data);
       });
 
     axios
-      .get(
-        `${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/risk-contribution`
-      )
+      .get(`${API_BASE_URL}/api/portfolio/${portfolioId}/risk-contribution`)
       .then((res) => {
         setRiskContribution(res.data);
       });
+  }
+
+  useEffect(() => {
+    loadDashboardData(selectedPortfolioId);
   }, [selectedPortfolioId]);
 
   function runStressTest() {
@@ -167,6 +179,32 @@ function App() {
       })
       .then((res) => {
         setStressResult(res.data);
+      });
+  }
+
+  function refreshMarketData() {
+    setMarketDataLoading(true);
+    setMarketDataMessage("");
+
+    axios
+      .post<MarketDataRefreshResult>(
+        `${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/market-data/refresh`
+      )
+      .then((res) => {
+        const failedCount = res.data.failed_tickers.length;
+        const failedMessage =
+          failedCount > 0 ? ` ${failedCount} ticker(s) failed.` : "";
+
+        setMarketDataMessage(
+          `${res.data.message}. Inserted ${res.data.rows_inserted} new price rows.${failedMessage}`
+        );
+        loadDashboardData(selectedPortfolioId);
+      })
+      .catch(() => {
+        setMarketDataMessage("Market data refresh failed. Please try again.");
+      })
+      .finally(() => {
+        setMarketDataLoading(false);
       });
   }
 
@@ -267,6 +305,9 @@ function App() {
             formatCurrency={formatCurrency}
             formatPercent={formatPercent}
             downloadRiskReport={downloadRiskReport}
+            refreshMarketData={refreshMarketData}
+            marketDataLoading={marketDataLoading}
+            marketDataMessage={marketDataMessage}
           />
         )}
       </div>

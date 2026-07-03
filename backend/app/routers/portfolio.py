@@ -5,6 +5,7 @@ from app.services.performance_service import (
     calculate_portfolio_value_duckdb,
     compare_analytics_engines,
 )
+from app.services.market_data_service import refresh_market_data
 from app.services.pdf_report_service import generate_pdf_risk_report
 from app.services.portfolio_service import (
     calculate_portfolio_holdings,
@@ -49,6 +50,11 @@ def get_sector_exposure(portfolio_id: int):
 @router.get("/portfolio/{portfolio_id}/risk-contribution")
 def get_risk_contribution(portfolio_id: int):
     return calculate_risk_contribution(portfolio_id)
+
+
+@router.post("/portfolio/{portfolio_id}/market-data/refresh")
+def refresh_portfolio_market_prices(portfolio_id: int):
+    return refresh_market_data(portfolio_id=portfolio_id)
 
 
 @router.get("/portfolio/{portfolio_id}/risk-report/pdf")

@@ -28,6 +28,107 @@ def test_get_portfolios(client, monkeypatch, portfolios_df):
     assert {"portfolio_id", "portfolio_name"} <= data[0].keys()
 
 
+def test_post_market_data_refresh(client, monkeypatch):
+    expected_response = {
+        "updated_tickers": ["AAPL"],
+        "failed_tickers": [],
+        "rows_inserted": 2,
+        "message": "Market data refresh completed",
+    }
+    mocked_service = Mock(return_value=expected_response)
+    monkeypatch.setattr(
+        "app.routers.market_data.refresh_market_data",
+        mocked_service,
+    )
+
+    response = client.post("/api/market-data/refresh")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data == expected_response
+    assert {
+        "updated_tickers",
+        "failed_tickers",
+        "rows_inserted",
+        "message",
+    } <= data.keys()
+    mocked_service.assert_called_once_with()
+
+
+def test_post_market_data_refresh_with_failed_ticker(client, monkeypatch):
+    expected_response = {
+        "updated_tickers": ["AAPL"],
+        "failed_tickers": [
+            {
+                "ticker": "BAD",
+                "reason": "No price data returned",
+            }
+        ],
+        "rows_inserted": 1,
+        "message": "Market data refresh completed",
+    }
+    monkeypatch.setattr(
+        "app.routers.market_data.refresh_market_data",
+        Mock(return_value=expected_response),
+    )
+
+    response = client.post("/api/market-data/refresh")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["updated_tickers"] == ["AAPL"]
+    assert data["failed_tickers"][0]["ticker"] == "BAD"
+    assert data["failed_tickers"][0]["reason"] == "No price data returned"
+    assert data["rows_inserted"] == 1
+
+
+def test_post_portfolio_market_data_refresh(client, monkeypatch):
+    expected_response = {
+        "updated_tickers": ["AAPL"],
+        "failed_tickers": [],
+        "rows_inserted": 2,
+        "message": "Market data refresh completed",
+    }
+    mocked_service = Mock(return_value=expected_response)
+    monkeypatch.setattr(
+        "app.routers.portfolio.refresh_market_data",
+        mocked_service,
+    )
+
+    response = client.post("/api/portfolio/1/market-data/refresh")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data == expected_response
+    assert {
+        "updated_tickers",
+        "failed_tickers",
+        "rows_inserted",
+        "message",
+    } <= data.keys()
+    mocked_service.assert_called_once_with(portfolio_id=1)
+
+
+def test_get_market_data_status(client, monkeypatch):
+    expected_response = {
+        "latest_price_date": "2026-07-03",
+        "price_rows": 123,
+    }
+    mocked_service = Mock(return_value=expected_response)
+    monkeypatch.setattr(
+        "app.routers.market_data.get_market_data_status",
+        mocked_service,
+    )
+
+    response = client.get("/api/market-data/status")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data == expected_response
+    assert {"latest_price_date", "price_rows"} <= data.keys()
+    mocked_service.assert_called_once_with()
+
+
 def test_get_portfolio_risk(client, monkeypatch, risk_response):
     mocked_service = Mock(return_value=risk_response)
     monkeypatch.setattr(
