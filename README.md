@@ -1,5 +1,7 @@
 # Investment Risk Analytics Platform
 
+[![CI](https://github.com/itzjiawei/investment-risk-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/itzjiawei/investment-risk-platform/actions/workflows/ci.yml)
+
 A full-stack investment risk analytics platform that provides portfolio risk monitoring, stress testing, AI-powered risk analysis, portfolio comparison, and analytics benchmarking.
 
 ## Overview
@@ -41,6 +43,12 @@ This platform helps investment professionals analyze portfolio risk through:
 - Natural language portfolio Q&A
 - Conversation memory
 - Portfolio insights
+
+### PDF Risk Reports
+
+- Downloadable portfolio risk report from the dashboard
+- Includes key risk metrics, sector exposure, top risk contributors, stress test impact, and an optional AI summary
+- Works without Ollama running by including a fallback AI-unavailable note
 
 ### Portfolio Comparison
 
@@ -182,6 +190,24 @@ Backend runs on:
 http://127.0.0.1:8000
 ```
 
+### Backend Tests
+
+Install backend dependencies, including pytest:
+
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+Run the automated backend tests:
+
+```bash
+cd backend
+pytest
+```
+
+The tests use FastAPI `TestClient`. Database-dependent endpoints are tested by mocking the service/data-loading layer, so PostgreSQL does not need to be running. AI endpoints mock the Ollama-backed service responses, so Ollama does not need to be running.
+
 ### Frontend
 
 ```bash
@@ -197,6 +223,28 @@ Frontend runs on:
 ```text
 http://localhost:5173
 ```
+
+---
+
+## Continuous Integration
+
+Continuous Integration (CI) automatically validates the application whenever code is pushed or a pull request is opened. This project uses GitHub Actions to run backend and frontend checks in separate jobs so failures are easy to isolate.
+
+The CI workflow runs on:
+- `push`
+- `pull_request`
+
+The backend job:
+- Sets up Python
+- Installs dependencies from `backend/requirements.txt`
+- Runs `pytest`
+
+The frontend job:
+- Sets up Node.js LTS
+- Installs dependencies with `npm install`
+- Runs `npm run build`
+
+CI is useful because it catches broken tests, dependency issues, and TypeScript/build regressions before changes are merged.
 
 ---
 

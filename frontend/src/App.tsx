@@ -86,7 +86,9 @@ function formatPercent(value: number) {
 }
 
 function App() {
-  const [activePage, setActivePage] = useState<"dashboard" | "performance" | "comparison"| "AI" | "analytics">(
+  const [activePage, setActivePage] = useState<
+    "dashboard" | "performance" | "comparison" | "AI" | "analytics"
+  >(
     "dashboard"
   );
 
@@ -168,73 +170,106 @@ function App() {
       });
   }
 
+  function downloadRiskReport() {
+    axios
+      .get(
+        `${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/risk-report/pdf`,
+        {
+          responseType: "blob",
+        }
+      )
+      .then((res) => {
+        const contentDisposition = res.headers["content-disposition"];
+        const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
+        const filename =
+          filenameMatch?.[1] ??
+          `portfolio-${selectedPortfolioId}-risk-report.pdf`;
+        const url = window.URL.createObjectURL(
+          new Blob([res.data], { type: "application/pdf" })
+        );
+        const link = document.createElement("a");
+
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      });
+  }
+
   return (
     <main className="page">
-      <div className="nav-tabs">
-        <button
-          className={activePage === "dashboard" ? "active-tab" : ""}
-          onClick={() => setActivePage("dashboard")}
-        >
-          Dashboard
-        </button>
+      <header className="app-header">
+        <div className="brand-lockup">
+          <div className="brand-mark" aria-hidden="true">
+            IR
+          </div>
+          <div>
+            <p className="brand-kicker">Sovereign Risk Console</p>
+            <h1>Investment Risk Platform</h1>
+          </div>
+        </div>
 
-        <button
-          className={activePage === "performance" ? "active-tab" : ""}
-          onClick={() => setActivePage("performance")}
-        >
-          Performance Lab
-        </button>
+        <div className="header-status">
+          <span className="status-dot" aria-hidden="true" />
+          Live analytics
+        </div>
+      </header>
 
-        <button
-          className={activePage === "comparison" ? "active-tab" : ""}
-          onClick={() => setActivePage("comparison")}
-        >
-          Comparison
-        </button>
+      <nav className="nav-tabs" aria-label="Primary sections">
+        {[
+          ["dashboard", "Dashboard"],
+          ["analytics", "Analytics"],
+          ["comparison", "Comparison"],
+          ["AI", "AI Copilot"],
+          ["performance", "Performance Lab"],
+        ].map(([page, label]) => (
+          <button
+            key={page}
+            className={activePage === page ? "active-tab" : ""}
+            onClick={() =>
+              setActivePage(
+                page as "dashboard" | "performance" | "comparison" | "AI" | "analytics"
+              )
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
 
-        <button
-          className={activePage === "AI" ? "active-tab" : ""}
-          onClick={() => setActivePage("AI")}
-        >
-          AI Copilot
-        </button>
+      <div className="workspace">
+        {activePage === "performance" && <PerformanceLab />}
+        {activePage === "comparison" && <PortfolioComparisonPage />}
+        {activePage === "AI" && <AiCopilotPage />}
+        {activePage === "analytics" && (
+          <AnalyticsPage
+            holdings={holdings}
+            riskContribution={riskContribution}
+            stressShocks={stressShocks}
+            stressResult={stressResult}
+            setStressShocks={setStressShocks}
+            runStressTest={runStressTest}
+            formatCurrency={formatCurrency}
+            formatPercent={formatPercent}
+          />
+        )}
 
-        <button
-          className={activePage === "analytics" ? "active-tab" : ""}
-          onClick={() => setActivePage("analytics")}
-        >
-          Analytics
-        </button>
+        {activePage === "dashboard" && (
+          <DashboardPage
+            portfolios={portfolios}
+            selectedPortfolioId={selectedPortfolioId}
+            setSelectedPortfolioId={setSelectedPortfolioId}
+            risk={risk}
+            returns={returns}
+            sectorExposure={sectorExposure}
+            formatCurrency={formatCurrency}
+            formatPercent={formatPercent}
+            downloadRiskReport={downloadRiskReport}
+          />
+        )}
       </div>
-
-      {activePage === "performance" && <PerformanceLab />}
-      {activePage === "comparison" && <PortfolioComparisonPage />}
-      {activePage === "AI" && <AiCopilotPage />}
-      {activePage === "analytics" && (
-        <AnalyticsPage
-          holdings={holdings}
-          riskContribution={riskContribution}
-          stressShocks={stressShocks}
-          stressResult={stressResult}
-          setStressShocks={setStressShocks}
-          runStressTest={runStressTest}
-          formatCurrency={formatCurrency}
-          formatPercent={formatPercent}
-        />
-      )}
-
-      {activePage === "dashboard" && (
-        <DashboardPage
-          portfolios={portfolios}
-          selectedPortfolioId={selectedPortfolioId}
-          setSelectedPortfolioId={setSelectedPortfolioId}
-          risk={risk}
-          returns={returns}
-          sectorExposure={sectorExposure}
-          formatCurrency={formatCurrency}
-          formatPercent={formatPercent}
-        />
-      )}
     </main>
   )};
 

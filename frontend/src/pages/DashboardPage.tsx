@@ -48,15 +48,16 @@ type DashboardPageProps = {
   sectorExposure: SectorExposure[];
   formatCurrency: (value: number) => string;
   formatPercent: (value: number) => string;
+  downloadRiskReport: () => void;
 };
 
 const PIE_COLORS = [
-  "#38bdf8",
-  "#22c55e",
-  "#f97316",
-  "#eab308",
-  "#a855f7",
-  "#ef4444",
+  "#024f8b",
+  "#009f93",
+  "#c54031",
+  "#d6a63a",
+  "#677f9d",
+  "#6d5a89",
 ];
 
 function DashboardPage({
@@ -68,33 +69,46 @@ function DashboardPage({
   sectorExposure,
   formatCurrency,
   formatPercent,
+  downloadRiskReport,
 }: DashboardPageProps) {
   return (
     <>
       <section className="hero">
-        <p className="eyebrow">Investment Risk Analytics</p>
-        <h1>Portfolio Risk Dashboard</h1>
+        <div>
+          <p className="eyebrow">Investment Risk Analytics</p>
+          <h2>Portfolio Risk Dashboard</h2>
+        </div>
         <p className="subtitle">
-          Monitor portfolio value, returns, volatility and risk indicators from
-          scalable analytics APIs.
+          A disciplined view of portfolio value, volatility, allocation and
+          downside indicators for long-term capital stewardship.
         </p>
       </section>
 
       <section className="toolbar">
-        <label>Portfolio</label>
-        <select
-          value={selectedPortfolioId}
-          onChange={(e) => setSelectedPortfolioId(Number(e.target.value))}
+        <div className="toolbar-control">
+          <label>Portfolio</label>
+          <select
+            value={selectedPortfolioId}
+            onChange={(e) => setSelectedPortfolioId(Number(e.target.value))}
+          >
+            {portfolios.map((portfolio) => (
+              <option
+                key={portfolio.portfolio_id}
+                value={portfolio.portfolio_id}
+              >
+                {portfolio.portfolio_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          className="primary-button"
+          type="button"
+          onClick={downloadRiskReport}
         >
-          {portfolios.map((portfolio) => (
-            <option
-              key={portfolio.portfolio_id}
-              value={portfolio.portfolio_id}
-            >
-              {portfolio.portfolio_name}
-            </option>
-          ))}
-        </select>
+          Download Risk Report
+        </button>
       </section>
 
       {risk && (
@@ -145,10 +159,10 @@ function DashboardPage({
               <XAxis
                 dataKey="date"
                 minTickGap={40}
-                tick={{ fill: "#94a3b8" }}
+                tick={{ fill: "#67768d" }}
               />
               <YAxis
-                tick={{ fill: "#94a3b8" }}
+                tick={{ fill: "#67768d" }}
                 tickFormatter={(value) => `$${Math.round(value / 1000)}k`}
               />
               <Tooltip
@@ -160,7 +174,7 @@ function DashboardPage({
               <Line
                 type="monotone"
                 dataKey="portfolio_value"
-                stroke="#38bdf8"
+                stroke="#024f8b"
                 strokeWidth={3}
                 dot={false}
               />
