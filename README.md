@@ -162,16 +162,23 @@ flowchart LR
 investment-risk-platform/
 
 backend/
+├── .env.example
+├── requirements.txt
+├── seed_database.py
 ├── app/
+│   ├── config.py
 │   ├── main.py
-│   ├── analytics.py
-│   ├── ai_service.py
-│   ├── ai_chat.py
-│   ├── database.py
-│   └── data_loader.py
+│   ├── routers/
+│   ├── services/
+│   ├── schemas/
+│   └── database/
+└── tests/
 
 frontend/
+├── .env.example
+├── package.json
 ├── src/
+│   ├── config.ts
 │   ├── pages/
 │   │   ├── DashboardPage.tsx
 │   │   ├── AnalyticsPage.tsx
@@ -179,6 +186,88 @@ frontend/
 │   │   ├── PortfolioComparisonPage.tsx
 │   │   └── PerformanceLab.tsx
 │   └── App.tsx
+
+docker-compose.yml
+.github/workflows/ci.yml
+```
+
+---
+
+## Prerequisites
+
+- Python 3.13, or another Python version compatible with the packages in `backend/requirements.txt`
+- Node.js LTS
+- Docker Desktop or Docker Engine for PostgreSQL
+- Optional: Ollama with Llama 3.2 for local AI features
+
+On Windows, run the same commands in PowerShell and activate the Python virtual environment with:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+---
+
+## Environment Configuration
+
+The project keeps sensible localhost defaults for development, but deployment values should come from environment variables.
+
+Backend variables:
+
+```text
+DATABASE_URL=postgresql://risk_user:risk_password@localhost:5433/risk_analytics
+CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+OLLAMA_URL=http://localhost:11434/api/generate
+OLLAMA_MODEL=llama3.2:3b
+YFINANCE_REFRESH_PERIOD=1mo
+DB_SSLMODE=
+```
+
+Frontend variables:
+
+```text
+VITE_API_BASE_URL=http://127.0.0.1:8000
+```
+
+Copy the examples when setting up locally:
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+PowerShell:
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+Copy-Item frontend/.env.example frontend/.env
+```
+
+For deployment, set `DATABASE_URL`, `CORS_ORIGINS`, and `VITE_API_BASE_URL` in the hosting provider. Do not commit real `.env` files.
+
+---
+
+## Docker Setup
+
+Start PostgreSQL:
+
+```bash
+docker compose up -d postgres
+```
+
+The bundled Docker configuration exposes PostgreSQL on local port `5433`.
+
+Seed or refresh demo database content if needed:
+
+```bash
+cd backend
+python seed_database.py
+```
+
+Stop the database:
+
+```bash
+docker compose down
 ```
 
 ---
@@ -195,7 +284,7 @@ source .venv/bin/activate
 
 pip install -r requirements.txt
 
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload
 ```
 
 Backend runs on:
@@ -211,7 +300,7 @@ The platform ships with demo CSV data so the dashboard works locally without ext
 Run the backend, then use the dashboard button:
 
 ```text
-Refresh Market Data
+Update Portfolio Prices
 ```
 
 Or call the API directly:
@@ -273,6 +362,198 @@ Frontend runs on:
 ```text
 http://localhost:5173
 ```
+
+Build the frontend for production:
+
+```bash
+cd frontend
+npm run build
+```
+
+---
+
+## PDF Export
+
+Use the dashboard button:
+
+```text
+Download Risk Report
+```
+
+Or call the API directly:
+
+```bash
+curl -OJ http://127.0.0.1:8000/api/portfolio/1/risk-report/pdf
+```
+
+The PDF report includes core portfolio metrics, sector exposure, top risk contributors, stress test impact, and an AI summary when Ollama is available. If Ollama is not running, the report still downloads with an AI-unavailable note.
+
+---
+
+## AI Features
+
+AI features call a local Ollama server by default:
+
+```text
+http://localhost:11434/api/generate
+```
+
+Install Ollama and pull the configured model if you want live local AI responses:
+
+```bash
+ollama pull llama3.2:3b
+```
+
+Set `OLLAMA_URL` and `OLLAMA_MODEL` if your Ollama server or model name differs. Backend tests mock AI responses and do not require Ollama.
+
+---
+
+## GitHub Actions Locally
+
+GitHub Actions runs in GitHub on every push and pull request. If you want to approximate the checks locally, run:
+
+```bash
+cd backend
+pytest
+
+cd ../frontend
+npm run build
+```
+
+You can also use [`act`](https://github.com/nektos/act) to run workflows locally if it is installed:
+
+```bash
+act
+```
+
+---
+
+## Troubleshooting
+
+- Backend cannot connect to PostgreSQL: confirm `docker compose up -d postgres` is running and `DATABASE_URL` uses local port `5433`.
+- Frontend cannot reach the API: confirm `VITE_API_BASE_URL` points to the running FastAPI server and `CORS_ORIGINS` includes the frontend origin.
+- AI requests fail: confirm Ollama is running and the model in `OLLAMA_MODEL` is installed. PDF export still works without Ollama.
+- Market data refresh returns failed tickers: yfinance/Yahoo Finance may return empty data for unavailable symbols or during network issues. Demo data remains available.
+- CI build differs from local: run `pytest` from `backend/` and `npm run build` from `frontend/` before pushing.
+
+---
+
+## Deployment
+
+Recommended free-tier friendly deployment:
+
+- Frontend: Vercel
+- Backend: Render web service
+- Production database: Neon Postgres
+- Local database: Docker PostgreSQL from `docker-compose.yml`
+
+### Neon Postgres
+
+1. Create a Neon project and database.
+2. Copy the pooled or direct PostgreSQL connection string from Neon.
+3. Use that value as Render's `DATABASE_URL`.
+4. Do not commit the Neon URL or password.
+
+Neon usually requires SSL. This app supports Neon SSL in two ways:
+
+- If the Neon URL already includes `sslmode=require`, it is used as-is.
+- If the host contains `neon.tech`, the backend automatically uses SSL.
+- You can also set `DB_SSLMODE=require` explicitly on Render.
+
+Database seed command:
+
+```bash
+cd backend
+python seed_database.py
+```
+
+Run this against Neon only after setting `DATABASE_URL` to the Neon connection string in the environment where the command runs.
+
+### Render Backend
+
+Use the included `render.yaml` blueprint or create a Render Web Service manually.
+
+Render settings:
+
+```text
+Root Directory: backend
+Build Command: pip install -r requirements.txt
+Start Command: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+```
+
+Render environment variables:
+
+```text
+DATABASE_URL=<your Neon Postgres connection string>
+CORS_ORIGINS=https://your-vercel-app.vercel.app,http://localhost:5173,http://127.0.0.1:5173
+DB_SSLMODE=require
+OLLAMA_URL=http://localhost:11434/api/generate
+OLLAMA_MODEL=llama3.2:3b
+YFINANCE_REFRESH_PERIOD=1mo
+```
+
+Health check endpoint:
+
+```text
+GET https://your-render-service.onrender.com/
+```
+
+Expected response:
+
+```json
+{"message":"Investment Risk Analytics API is running"}
+```
+
+### Vercel Frontend
+
+Use the included `vercel.json` when deploying from the repository root.
+
+Vercel settings:
+
+```text
+Framework Preset: Vite
+Install Command: cd frontend && npm install
+Build Command: cd frontend && npm run build
+Output Directory: frontend/dist
+```
+
+Vercel environment variables:
+
+```text
+VITE_API_BASE_URL=https://your-render-service.onrender.com
+```
+
+After changing `VITE_API_BASE_URL`, redeploy the frontend so Vite bakes the value into the production bundle.
+
+### Local vs Production
+
+- Local development uses Docker PostgreSQL on port `5433` by default.
+- Production uses Neon through `DATABASE_URL`.
+- Local frontend defaults to `http://127.0.0.1:8000`.
+- Production frontend must set `VITE_API_BASE_URL` to the Render backend URL.
+- Local AI can use Ollama on your machine.
+- Render free tier usually will not run Ollama locally, so AI endpoints return a helpful fallback message when Ollama is unavailable. The rest of the analytics, PDF export, market data refresh, and dashboard continue to work.
+
+### Deployment Checklist
+
+- Neon database created.
+- Render `DATABASE_URL` points to Neon.
+- Render `CORS_ORIGINS` includes the Vercel frontend URL.
+- Render start command uses `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+- Vercel `VITE_API_BASE_URL` points to the Render backend.
+- Database has been seeded or migrated.
+- `GET /` on Render returns the health check JSON.
+- Frontend dashboard loads portfolios from the deployed backend.
+- PDF export downloads from the deployed backend.
+- AI fallback message is acceptable for hosted deployment without Ollama.
+
+### Deployment Troubleshooting
+
+- CORS error in browser: add the exact Vercel domain to `CORS_ORIGINS` on Render, then redeploy or restart the Render service.
+- Database SSL error: set `DB_SSLMODE=require` on Render or use a Neon connection string with `sslmode=require`.
+- Render service starts but API data fails: confirm `DATABASE_URL` points to the seeded Neon database.
+- Vercel still calls localhost: confirm `VITE_API_BASE_URL` is set in Vercel and redeploy the frontend.
+- AI response says unavailable: expected on hosted Render without Ollama. Run Ollama locally for full AI behavior.
 
 ---
 

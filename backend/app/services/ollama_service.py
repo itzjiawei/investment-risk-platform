@@ -1,22 +1,33 @@
 import requests
 
+from app.config import OLLAMA_MODEL, OLLAMA_URL
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "llama3.2:3b"
+MODEL_NAME = OLLAMA_MODEL
+AI_UNAVAILABLE_MESSAGE = (
+    "AI analysis is currently unavailable because the Ollama service could not be reached. "
+    "Portfolio analytics are still available, and AI features will work again when Ollama is running."
+)
 
 
 def ask_ollama(prompt: str, timeout: int = 120) -> str:
-    response = requests.post(
-        OLLAMA_URL,
-        json={
-            "model": MODEL_NAME,
-            "prompt": prompt,
-            "stream": False,
-        },
-        timeout=timeout,
-    )
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": MODEL_NAME,
+                "prompt": prompt,
+                "stream": False,
+            },
+            timeout=timeout,
+        )
 
-    response.raise_for_status()
+        response.raise_for_status()
+    except requests.RequestException:
+        return AI_UNAVAILABLE_MESSAGE
 
-    data = response.json()
-    return data.get("response", "")
+    try:
+        data = response.json()
+    except ValueError:
+        return AI_UNAVAILABLE_MESSAGE
+
+    return data.get("response", "") or AI_UNAVAILABLE_MESSAGE

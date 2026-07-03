@@ -4,10 +4,11 @@ from typing import Any
 import pandas as pd
 from sqlalchemy import text
 
+from app.config import YFINANCE_REFRESH_PERIOD
 from app.database.config import engine
 
 
-DEFAULT_REFRESH_PERIOD = "1mo"
+DEFAULT_REFRESH_PERIOD = YFINANCE_REFRESH_PERIOD
 
 
 def refresh_market_data(

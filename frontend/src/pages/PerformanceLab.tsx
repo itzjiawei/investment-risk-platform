@@ -1,5 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 type BenchmarkResult = {
   dataset: string;
@@ -10,8 +11,6 @@ type BenchmarkResult = {
   duckdb_time_seconds: number;
   duckdb_speedup: number;
 };
-
-const API_BASE_URL = "http://127.0.0.1:8000";
 
 function PerformanceLab() {
   const [result, setResult] = useState<BenchmarkResult | null>(null);

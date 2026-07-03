@@ -6,6 +6,7 @@ import PortfolioComparisonPage from "./pages/PortfolioComparisonPage";
 import AiCopilotPage from "./pages/AiCopilotPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import DashboardPage from "./pages/DashboardPage";
+import { API_BASE_URL } from "./config";
 
 type Portfolio = {
   portfolio_id: number;
@@ -82,8 +83,6 @@ type MarketDataRefreshResult = {
   rows_inserted: number;
   message: string;
 };
-
-const API_BASE_URL = "http://127.0.0.1:8000";
 
 function formatCurrency(value: number) {
   return `$${value.toLocaleString(undefined, {

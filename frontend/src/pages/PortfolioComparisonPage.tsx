@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 type Portfolio = {
   portfolio_id: number;
@@ -20,8 +21,6 @@ type AiPortfolioComparison = {
   portfolio_ids: number[];
   summary: string;
 };
-
-const API_BASE_URL = "http://127.0.0.1:8000";
 
 function formatCurrency(value: number) {
   return `$${value.toLocaleString(undefined, {

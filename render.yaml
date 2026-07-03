@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: investment-risk-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DB_SSLMODE
+        value: require
+      - key: OLLAMA_URL
+        value: http://localhost:11434/api/generate
+      - key: OLLAMA_MODEL
+        value: llama3.2:3b
+      - key: YFINANCE_REFRESH_PERIOD
+        value: 1mo

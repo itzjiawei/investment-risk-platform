@@ -1,5 +1,9 @@
 from unittest.mock import Mock
 
+import requests
+
+from app.services.ollama_service import AI_UNAVAILABLE_MESSAGE, ask_ollama
+
 
 MOCK_AI_RESPONSE = "Mock AI response"
 
@@ -84,3 +88,17 @@ def test_post_compare_ai(client, monkeypatch, comparison_response):
     assert isinstance(data["comparison"], list)
     assert data["summary"] == MOCK_AI_RESPONSE
     mocked_service.assert_called_once_with(payload["portfolio_ids"])
+
+
+def test_ollama_unavailable_returns_fallback_message(monkeypatch):
+    def raise_connection_error(*args, **kwargs):
+        raise requests.ConnectionError("Ollama is not running")
+
+    monkeypatch.setattr(
+        "app.services.ollama_service.requests.post",
+        raise_connection_error,
+    )
+
+    response = ask_ollama("Summarize portfolio risk")
+
+    assert response == AI_UNAVAILABLE_MESSAGE
