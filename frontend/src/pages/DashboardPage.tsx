@@ -77,6 +77,8 @@ function DashboardPage({
   marketDataLoading,
   marketDataMessage,
 }: DashboardPageProps) {
+  const hasSectorExposure = sectorExposure.length > 0;
+
   return (
     <>
       <section className="hero">
@@ -212,37 +214,46 @@ function DashboardPage({
           </div>
         </div>
 
-        <div className="chart-wrapper">
-          <ResponsiveContainer width="100%" height={400}>
-            <PieChart>
-              <Pie
-                data={sectorExposure}
-                dataKey="market_value"
-                nameKey="sector"
-                outerRadius={140}
-                label={(props) =>
-                  `${((props.percent ?? 0) * 100).toFixed(1)}%`
-                }
-              >
-                {sectorExposure.map((_, index) => (
-                  <Cell
-                    key={index}
-                    fill={PIE_COLORS[index % PIE_COLORS.length]}
-                  />
-                ))}
-              </Pie>
+        {hasSectorExposure ? (
+          <div className="chart-wrapper">
+            <ResponsiveContainer width="100%" height={400}>
+              <PieChart>
+                <Pie
+                  data={sectorExposure}
+                  dataKey="market_value"
+                  nameKey="sector"
+                  outerRadius={140}
+                  label={(props) =>
+                    `${((props.percent ?? 0) * 100).toFixed(1)}%`
+                  }
+                >
+                  {sectorExposure.map((_, index) => (
+                    <Cell
+                      key={index}
+                      fill={PIE_COLORS[index % PIE_COLORS.length]}
+                    />
+                  ))}
+                </Pie>
 
-              <Tooltip
-                formatter={(value) => [
-                  formatCurrency(Number(value)),
-                  "Market Value",
-                ]}
-              />
+                <Tooltip
+                  formatter={(value) => [
+                    formatCurrency(Number(value)),
+                    "Market Value",
+                  ]}
+                />
 
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="empty-chart-state">
+            <h3>No sector exposure data available</h3>
+            <p>
+              Try updating portfolio prices or check ticker mappings.
+            </p>
+          </div>
+        )}
       </section>
     </>
   );

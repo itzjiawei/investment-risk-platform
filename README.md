@@ -315,7 +315,11 @@ The dashboard refresh button updates only the selected portfolio's tickers. You 
 curl -X POST http://127.0.0.1:8000/api/portfolio/1/market-data/refresh
 ```
 
-The refresh process looks up tickers already used by the selected portfolio holdings, downloads recent daily close prices with yfinance, inserts only new price rows where possible, updates existing dates, and reports any failed tickers without stopping the whole refresh.
+The refresh process looks up tickers already used by the selected portfolio holdings, downloads recent daily close prices with yfinance, inserts only new price rows where possible, updates existing dates, and reports any failed tickers without stopping the whole refresh. Failed ticker responses include the display ticker, yfinance ticker, and reason.
+
+The `assets` data includes both a display `ticker` and an optional `yfinance_ticker`. The frontend and analytics continue to show the display ticker, while market data refresh uses `yfinance_ticker` for exchange-specific symbols such as `DBS` -> `D05.SI`.
+
+Portfolio holdings and sector exposure use each asset's latest valid available price. This keeps analytics stable when one ticker refreshes successfully but another ticker fails or has an older latest price.
 
 The global refresh endpoint remains available if you want to refresh all held tickers:
 
@@ -542,6 +546,7 @@ After changing `VITE_API_BASE_URL`, redeploy the frontend so Vite bakes the valu
 - Render start command uses `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
 - Vercel `VITE_API_BASE_URL` points to the Render backend.
 - Database has been seeded or migrated.
+- The Neon `assets` table includes the optional `yfinance_ticker` column, or the database has been reseeded after pulling the latest data files.
 - `GET /` on Render returns the health check JSON.
 - Frontend dashboard loads portfolios from the deployed backend.
 - PDF export downloads from the deployed backend.

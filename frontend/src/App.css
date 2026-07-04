@@ -339,6 +339,31 @@ input:focus {
   height: 390px;
 }
 
+.empty-chart-state {
+  display: grid;
+  place-content: center;
+  min-height: 390px;
+  padding: 24px;
+  text-align: center;
+  background: #fffaf0;
+  border: 1px dashed #d8cdbb;
+}
+
+.empty-chart-state h3 {
+  margin: 0 0 8px;
+  color: var(--navy);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.empty-chart-state p {
+  max-width: 520px;
+  margin: 0 auto;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 .recharts-cartesian-grid line {
   stroke: #ded6c8;
 }

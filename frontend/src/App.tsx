@@ -78,6 +78,7 @@ type MarketDataRefreshResult = {
   updated_tickers: string[];
   failed_tickers: {
     ticker: string;
+    yfinance_ticker?: string;
     reason: string;
   }[];
   rows_inserted: number;
@@ -190,9 +191,20 @@ function App() {
         `${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/market-data/refresh`
       )
       .then((res) => {
-        const failedCount = res.data.failed_tickers.length;
-        const failedMessage =
-          failedCount > 0 ? ` ${failedCount} ticker(s) failed.` : "";
+        const failedTickers = res.data.failed_tickers
+          .map((failedTicker) => {
+            const yfinanceLabel =
+              failedTicker.yfinance_ticker &&
+              failedTicker.yfinance_ticker !== failedTicker.ticker
+                ? ` (${failedTicker.yfinance_ticker})`
+                : "";
+
+            return `${failedTicker.ticker}${yfinanceLabel}: ${failedTicker.reason}`;
+          })
+          .join("; ");
+        const failedMessage = failedTickers
+          ? ` Failed tickers: ${failedTickers}.`
+          : "";
 
         setMarketDataMessage(
           `${res.data.message}. Inserted ${res.data.rows_inserted} new price rows.${failedMessage}`

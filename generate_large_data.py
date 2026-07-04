@@ -13,6 +13,7 @@ dates = pd.date_range(start="2020-01-01", periods=num_days, freq="B")
 assets = pd.DataFrame({
     "asset_id": range(1, num_assets + 1),
     "ticker": [f"AST{i}" for i in range(1, num_assets + 1)],
+    "yfinance_ticker": [f"AST{i}" for i in range(1, num_assets + 1)],
     "name": [f"Asset {i}" for i in range(1, num_assets + 1)],
     "sector": np.random.choice(
         ["Technology", "Financials", "Healthcare", "ETF", "Commodities"],

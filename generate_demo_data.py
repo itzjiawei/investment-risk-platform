@@ -8,15 +8,22 @@ DATA_DIR.mkdir(exist_ok=True)
 np.random.seed(42)
 
 assets = pd.DataFrame([
-    [1, "AAPL", "Apple", "Technology", "US"],
-    [2, "MSFT", "Microsoft", "Technology", "US"],
-    [3, "NVDA", "NVIDIA", "Semiconductors", "US"],
-    [4, "TSM", "TSMC", "Semiconductors", "Taiwan"],
-    [5, "DBS.SI", "DBS Bank", "Financials", "Singapore"],
-    [6, "0700.HK", "Tencent", "Technology", "China"],
-    [7, "SPY", "S&P 500 ETF", "ETF", "US"],
-    [8, "GLD", "Gold ETF", "Commodities", "US"],
-], columns=["asset_id", "ticker", "name", "sector", "country"])
+    [1, "AAPL", "Apple", "Technology", "US", "AAPL"],
+    [2, "MSFT", "Microsoft", "Technology", "US", "MSFT"],
+    [3, "NVDA", "NVIDIA", "Semiconductors", "US", "NVDA"],
+    [4, "TSMC", "TSMC", "Semiconductors", "Taiwan", "2330.TW"],
+    [5, "DBS", "DBS Bank", "Financials", "Singapore", "D05.SI"],
+    [6, "TENCENT", "Tencent", "Technology", "China", "0700.HK"],
+    [7, "SPY", "S&P 500 ETF", "ETF", "US", "SPY"],
+    [8, "GLD", "Gold ETF", "Commodities", "US", "GLD"],
+], columns=[
+    "asset_id",
+    "ticker",
+    "name",
+    "sector",
+    "country",
+    "yfinance_ticker",
+])
 
 portfolios = pd.DataFrame([
     [1, "Global Growth Portfolio"],

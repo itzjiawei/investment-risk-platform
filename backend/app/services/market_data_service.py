@@ -1,7 +1,9 @@
 from datetime import date
+import logging
 from typing import Any
 
 import pandas as pd
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
 
 from app.config import YFINANCE_REFRESH_PERIOD
@@ -9,6 +11,18 @@ from app.database.config import engine
 
 
 DEFAULT_REFRESH_PERIOD = YFINANCE_REFRESH_PERIOD
+logger = logging.getLogger(__name__)
+
+KNOWN_YFINANCE_TICKER_MAP = {
+    "DBS": "D05.SI",
+    "DBS.SI": "D05.SI",
+    "OCBC": "O39.SI",
+    "UOB": "U11.SI",
+    "TENCENT": "0700.HK",
+    "ALIBABA HK": "9988.HK",
+    "ALIBABA": "9988.HK",
+    "TSMC": "2330.TW",
+}
 
 
 def refresh_market_data(
@@ -24,43 +38,44 @@ def refresh_market_data(
     for asset in assets:
         asset_id = int(asset["asset_id"])
         ticker = str(asset["ticker"])
+        yfinance_ticker = _get_yfinance_ticker(asset)
 
         try:
-            price_rows = _fetch_price_rows(asset_id, ticker, period)
+            price_rows = _fetch_price_rows(asset_id, yfinance_ticker, period)
         except ImportError:
-            failed_tickers.append(
-                {
-                    "ticker": ticker,
-                    "reason": "yfinance is not installed or unavailable",
-                }
+            _record_failed_ticker(
+                failed_tickers,
+                ticker,
+                "yfinance is not installed or unavailable",
+                yfinance_ticker,
             )
             continue
         except Exception as exc:
-            failed_tickers.append(
-                {
-                    "ticker": ticker,
-                    "reason": str(exc),
-                }
+            _record_failed_ticker(
+                failed_tickers,
+                ticker,
+                str(exc),
+                yfinance_ticker,
             )
             continue
 
         if not price_rows:
-            failed_tickers.append(
-                {
-                    "ticker": ticker,
-                    "reason": "No price data returned",
-                }
+            _record_failed_ticker(
+                failed_tickers,
+                ticker,
+                "No price data returned",
+                yfinance_ticker,
             )
             continue
 
         try:
             inserted_count = _insert_new_price_rows(asset_id, price_rows)
         except Exception as exc:
-            failed_tickers.append(
-                {
-                    "ticker": ticker,
-                    "reason": f"Database insert failed: {exc}",
-                }
+            _record_failed_ticker(
+                failed_tickers,
+                ticker,
+                f"Database insert failed: {exc}",
+                yfinance_ticker,
             )
             continue
 
@@ -110,7 +125,20 @@ def _get_relevant_assets(portfolio_id: int | None = None) -> list[dict[str, Any]
         portfolio_filter = "WHERE h.portfolio_id = :portfolio_id"
         query_params["portfolio_id"] = portfolio_id
 
-    query = text(
+    query_with_yfinance_ticker = text(
+        f"""
+        SELECT DISTINCT
+            a.asset_id,
+            a.ticker,
+            a.yfinance_ticker
+        FROM assets a
+        INNER JOIN holdings h
+            ON a.asset_id = h.asset_id
+        {portfolio_filter}
+        ORDER BY a.ticker
+        """
+    )
+    query_without_yfinance_ticker = text(
         f"""
         SELECT DISTINCT
             a.asset_id,
@@ -123,8 +151,18 @@ def _get_relevant_assets(portfolio_id: int | None = None) -> list[dict[str, Any]
         """
     )
 
-    with engine.connect() as connection:
-        rows = connection.execute(query, query_params).mappings().all()
+    try:
+        with engine.connect() as connection:
+            rows = connection.execute(
+                query_with_yfinance_ticker,
+                query_params,
+            ).mappings().all()
+    except SQLAlchemyError:
+        with engine.connect() as connection:
+            rows = connection.execute(
+                query_without_yfinance_ticker,
+                query_params,
+            ).mappings().all()
 
     return [dict(row) for row in rows]
 
@@ -176,6 +214,45 @@ def _get_yfinance_module():
     import yfinance
 
     return yfinance
+
+
+def _get_yfinance_ticker(asset: dict[str, Any]) -> str:
+    yfinance_ticker = asset.get("yfinance_ticker")
+
+    if yfinance_ticker is None or pd.isna(yfinance_ticker):
+        return _map_display_ticker_to_yfinance(str(asset["ticker"]))
+
+    cleaned_ticker = str(yfinance_ticker).strip()
+    return cleaned_ticker or _map_display_ticker_to_yfinance(str(asset["ticker"]))
+
+
+def _map_display_ticker_to_yfinance(ticker: str) -> str:
+    cleaned_ticker = ticker.strip()
+    return KNOWN_YFINANCE_TICKER_MAP.get(
+        cleaned_ticker.upper(),
+        cleaned_ticker,
+    )
+
+
+def _record_failed_ticker(
+    failed_tickers: list[dict[str, str]],
+    ticker: str,
+    reason: str,
+    yfinance_ticker: str,
+) -> None:
+    logger.warning(
+        "Market data refresh failed for %s using yfinance ticker %s: %s",
+        ticker,
+        yfinance_ticker,
+        reason,
+    )
+    failed_tickers.append(
+        {
+            "ticker": ticker,
+            "yfinance_ticker": yfinance_ticker,
+            "reason": reason,
+        }
+    )
 
 
 def _insert_new_price_rows(

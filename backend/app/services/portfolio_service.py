@@ -1,7 +1,12 @@
+import logging
+
 import numpy as np
 import pandas as pd
 
 from app.database.repository import load_assets, load_holdings, load_prices
+
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_portfolio_value(portfolio_id: int):
@@ -127,34 +132,36 @@ def calculate_portfolio_returns(portfolio_id: int):
 
 
 def calculate_portfolio_holdings(portfolio_id: int):
-    holdings = load_holdings()
-    prices = load_prices()
-    assets = load_assets()
+    merged = _build_latest_holdings_frame(portfolio_id)
 
-    portfolio_holdings = holdings[holdings["portfolio_id"] == portfolio_id]
-
-    if portfolio_holdings.empty:
+    if merged.empty:
         return []
 
-    prices["date"] = pd.to_datetime(prices["date"])
+    total_holdings_count = len(merged)
+    missing_price_tickers = _get_missing_price_tickers(merged)
 
-    latest_date = prices["date"].max()
+    priced_holdings = _filter_priced_holdings(merged)
 
-    latest_prices = prices[prices["date"] == latest_date]
-
-    merged = (
-        portfolio_holdings
-        .merge(assets, on="asset_id", how="left")
-        .merge(latest_prices, on="asset_id", how="left")
+    logger.info(
+        "Portfolio holdings calculated for portfolio_id=%s holdings_count=%s missing_price_tickers=%s priced_holdings_count=%s",
+        portfolio_id,
+        total_holdings_count,
+        missing_price_tickers,
+        len(priced_holdings),
     )
 
-    merged["market_value"] = merged["quantity"] * merged["close_price"]
+    if priced_holdings.empty:
+        return []
 
-    total_value = merged["market_value"].sum()
+    total_value = priced_holdings["market_value"].sum()
 
-    merged["weight"] = merged["market_value"] / total_value
+    if not _is_valid_positive_number(total_value):
+        return []
 
-    result = merged[[
+    priced_holdings["weight"] = priced_holdings["market_value"] / total_value
+    priced_holdings["weight"] = _clean_numeric_series(priced_holdings["weight"])
+
+    result = priced_holdings[[
         "ticker",
         "name",
         "sector",
@@ -173,24 +180,66 @@ def calculate_portfolio_holdings(portfolio_id: int):
     result["market_value"] = result["market_value"].round(2)
     result["weight"] = result["weight"].round(6)
 
-    return result.to_dict(orient="records")
+    return _to_json_safe_records(result)
 
 
 def calculate_sector_exposure(portfolio_id: int):
-    holdings_data = calculate_portfolio_holdings(portfolio_id)
+    merged = _build_latest_holdings_frame(portfolio_id)
 
-    if not holdings_data:
+    if merged.empty:
+        logger.info(
+            "Sector exposure empty for portfolio_id=%s holdings_count=0 missing_price_tickers=[] output_count=0",
+            portfolio_id,
+        )
         return []
 
-    df = pd.DataFrame(holdings_data)
+    holdings_count = len(merged)
+    missing_price_tickers = _get_missing_price_tickers(merged)
+    priced_holdings = _filter_priced_holdings(merged)
+
+    if priced_holdings.empty:
+        logger.info(
+            "Sector exposure empty for portfolio_id=%s holdings_count=%s missing_price_tickers=%s output_count=0",
+            portfolio_id,
+            holdings_count,
+            missing_price_tickers,
+        )
+        return []
+
+    total_holdings_value = priced_holdings["market_value"].sum()
+
+    if not _is_valid_positive_number(total_holdings_value):
+        logger.info(
+            "Sector exposure empty for portfolio_id=%s holdings_count=%s missing_price_tickers=%s total_market_value=%s output_count=0",
+            portfolio_id,
+            holdings_count,
+            missing_price_tickers,
+            total_holdings_value,
+        )
+        return []
 
     sector_exposure = (
-        df.groupby("sector")["market_value"]
+        priced_holdings.groupby("sector")["market_value"]
         .sum()
         .reset_index()
     )
 
+    sector_exposure["market_value"] = _clean_numeric_series(
+        sector_exposure["market_value"]
+    )
+    sector_exposure = sector_exposure.dropna(subset=["market_value"])
+
     total_value = sector_exposure["market_value"].sum()
+
+    if not _is_valid_positive_number(total_value):
+        logger.info(
+            "Sector exposure empty for portfolio_id=%s holdings_count=%s missing_price_tickers=%s total_market_value=%s output_count=0",
+            portfolio_id,
+            holdings_count,
+            missing_price_tickers,
+            total_value,
+        )
+        return []
 
     sector_exposure["weight"] = (
         sector_exposure["market_value"] / total_value
@@ -199,7 +248,84 @@ def calculate_sector_exposure(portfolio_id: int):
     sector_exposure["market_value"] = sector_exposure["market_value"].round(2)
     sector_exposure["weight"] = sector_exposure["weight"].round(6)
 
-    return sector_exposure.to_dict(orient="records")
+    records = _to_json_safe_records(sector_exposure)
+    logger.info(
+        "Sector exposure calculated for portfolio_id=%s holdings_count=%s missing_price_tickers=%s output_count=%s",
+        portfolio_id,
+        holdings_count,
+        missing_price_tickers,
+        len(records),
+    )
+    return records
+
+
+def _build_latest_holdings_frame(portfolio_id: int) -> pd.DataFrame:
+    holdings = load_holdings()
+    prices = load_prices()
+    assets = load_assets()
+
+    portfolio_holdings = holdings[holdings["portfolio_id"] == portfolio_id]
+
+    if portfolio_holdings.empty or prices.empty:
+        return pd.DataFrame()
+
+    prices["date"] = pd.to_datetime(prices["date"], errors="coerce")
+    prices["close_price"] = _clean_numeric_series(prices["close_price"])
+
+    valid_prices = prices.dropna(subset=["asset_id", "date", "close_price"]).copy()
+
+    if valid_prices.empty:
+        return pd.DataFrame()
+
+    latest_prices = (
+        valid_prices
+        .sort_values(["asset_id", "date"])
+        .groupby("asset_id", as_index=False)
+        .tail(1)
+    )
+
+    return (
+        portfolio_holdings
+        .merge(assets, on="asset_id", how="left")
+        .merge(latest_prices, on="asset_id", how="left")
+    )
+
+
+def _filter_priced_holdings(holdings: pd.DataFrame) -> pd.DataFrame:
+    priced_holdings = holdings.copy()
+    priced_holdings["quantity"] = _clean_numeric_series(priced_holdings["quantity"])
+    priced_holdings["close_price"] = _clean_numeric_series(
+        priced_holdings["close_price"]
+    )
+    priced_holdings = priced_holdings.dropna(
+        subset=["quantity", "close_price"],
+    ).copy()
+
+    if priced_holdings.empty:
+        return priced_holdings
+
+    priced_holdings["market_value"] = (
+        priced_holdings["quantity"] * priced_holdings["close_price"]
+    )
+    priced_holdings["market_value"] = _clean_numeric_series(
+        priced_holdings["market_value"]
+    )
+    return priced_holdings.dropna(subset=["market_value"]).copy()
+
+
+def _get_missing_price_tickers(holdings: pd.DataFrame) -> list[str]:
+    if holdings.empty or "close_price" not in holdings.columns:
+        return []
+
+    close_prices = _clean_numeric_series(holdings["close_price"])
+    tickers = holdings.loc[
+        close_prices.isna(),
+        "ticker",
+    ].dropna()
+    return sorted(
+        str(ticker)
+        for ticker in tickers.unique()
+    )
 
 
 def calculate_risk_contribution(portfolio_id: int):
@@ -239,10 +365,11 @@ def calculate_risk_contribution(portfolio_id: int):
     merged["risk_score"] = (
         merged["weight"] * merged["daily_volatility"]
     )
+    merged["risk_score"] = _clean_numeric_series(merged["risk_score"]).fillna(0)
 
     total_risk_score = merged["risk_score"].sum()
 
-    if total_risk_score == 0:
+    if not _is_valid_positive_number(total_risk_score):
         merged["risk_contribution"] = 0
     else:
         merged["risk_contribution"] = (
@@ -260,7 +387,7 @@ def calculate_risk_contribution(portfolio_id: int):
     ]].copy()
 
     result["weight"] = result["weight"].round(6)
-    result["daily_volatility"] = result["daily_volatility"].round(6)
+    result["daily_volatility"] = result["daily_volatility"].fillna(0).round(6)
     result["risk_score"] = result["risk_score"].round(6)
     result["risk_contribution"] = result["risk_contribution"].round(6)
 
@@ -269,7 +396,7 @@ def calculate_risk_contribution(portfolio_id: int):
         ascending=False
     )
 
-    return result.to_dict(orient="records")
+    return _to_json_safe_records(result)
 
 
 def run_custom_stress_test(portfolio_id: int, shocks: dict):
@@ -288,6 +415,9 @@ def run_custom_stress_test(portfolio_id: int, shocks: dict):
 
     total_value = df["market_value"].sum()
     total_impact = df["estimated_loss"].sum()
+
+    if not _is_valid_positive_number(total_value):
+        return {"error": "Portfolio has no priced holdings"}
 
     stressed_value = total_value + total_impact
 
@@ -313,7 +443,7 @@ def run_custom_stress_test(portfolio_id: int, shocks: dict):
         "stressed_value": round(float(stressed_value), 2),
         "impact_value": round(float(total_impact), 2),
         "impact_percent": round(float(total_impact / total_value), 6),
-        "breakdown": breakdown.to_dict(orient="records"),
+        "breakdown": _to_json_safe_records(breakdown),
     }
 
 
@@ -337,3 +467,20 @@ def compare_portfolios(portfolio_ids: list[int]):
         })
 
     return comparison
+
+
+def _clean_numeric_series(series: pd.Series) -> pd.Series:
+    return pd.to_numeric(series, errors="coerce").replace(
+        [np.inf, -np.inf],
+        np.nan,
+    )
+
+
+def _is_valid_positive_number(value) -> bool:
+    return pd.notna(value) and np.isfinite(float(value)) and float(value) > 0
+
+
+def _to_json_safe_records(df: pd.DataFrame):
+    safe_df = df.replace([np.inf, -np.inf], np.nan)
+    safe_df = safe_df.astype(object).where(pd.notna(safe_df), None)
+    return safe_df.to_dict(orient="records")
