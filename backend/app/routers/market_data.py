@@ -10,6 +10,7 @@ from app.services.market_data_service import (
     get_market_data_status,
     refresh_market_data,
 )
+from app.services.dashboard_cache_service import invalidate_all_dashboard_cache
 
 
 router = APIRouter(prefix="/api")
@@ -41,7 +42,9 @@ def get_prices(limit: int = 20):
 
 @router.post("/market-data/refresh")
 def refresh_market_prices():
-    return refresh_market_data()
+    result = refresh_market_data()
+    invalidate_all_dashboard_cache()
+    return result
 
 
 @router.get("/market-data/status")

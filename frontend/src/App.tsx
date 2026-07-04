@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import "./App.css";
 import PerformanceLab from "./pages/PerformanceLab";
@@ -55,6 +55,14 @@ type RiskContribution = {
   daily_volatility: number;
   risk_score: number;
   risk_contribution: number;
+};
+
+type DashboardData = {
+  risk: RiskMetrics;
+  returns: ReturnPoint[];
+  holdings: Holding[];
+  sector_exposure: SectorExposure[];
+  risk_contribution: RiskContribution[];
 };
 
 type StressTestResult = {
@@ -124,6 +132,8 @@ function App() {
     useState<StressTestResult | null>(null);
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [marketDataMessage, setMarketDataMessage] = useState("");
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const dashboardRequestIdRef = useRef(0);
 
   useEffect(() => {
     axios.get(`${API_BASE_URL}/api/portfolios`).then((res) => {
@@ -132,39 +142,30 @@ function App() {
   }, []);
 
   function loadDashboardData(portfolioId: number) {
-    axios
-      .get(`${API_BASE_URL}/api/portfolio/${portfolioId}/risk`)
-      .then((res) => {
-        setRisk(res.data);
-      });
+    const requestId = dashboardRequestIdRef.current + 1;
+    dashboardRequestIdRef.current = requestId;
+    setDashboardLoading(true);
 
     axios
-      .get(`${API_BASE_URL}/api/portfolio/${portfolioId}/returns`)
+      .get<DashboardData>(`${API_BASE_URL}/api/portfolio/${portfolioId}/dashboard`)
       .then((res) => {
-        const formattedReturns = res.data.map((point: ReturnPoint) => ({
+        if (requestId !== dashboardRequestIdRef.current) return;
+
+        const formattedReturns = res.data.returns.map((point: ReturnPoint) => ({
           ...point,
           date: point.date.slice(0, 10),
         }));
 
+        setRisk(res.data.risk);
         setReturns(formattedReturns);
-      });
-
-    axios
-      .get(`${API_BASE_URL}/api/portfolio/${portfolioId}/holdings`)
-      .then((res) => {
-        setHoldings(res.data);
-      });
-
-    axios
-      .get(`${API_BASE_URL}/api/portfolio/${portfolioId}/sector-exposure`)
-      .then((res) => {
-        setSectorExposure(res.data);
-      });
-
-    axios
-      .get(`${API_BASE_URL}/api/portfolio/${portfolioId}/risk-contribution`)
-      .then((res) => {
-        setRiskContribution(res.data);
+        setHoldings(res.data.holdings);
+        setSectorExposure(res.data.sector_exposure);
+        setRiskContribution(res.data.risk_contribution);
+      })
+      .finally(() => {
+        if (requestId === dashboardRequestIdRef.current) {
+          setDashboardLoading(false);
+        }
       });
   }
 
@@ -319,6 +320,7 @@ function App() {
             refreshMarketData={refreshMarketData}
             marketDataLoading={marketDataLoading}
             marketDataMessage={marketDataMessage}
+            dashboardLoading={dashboardLoading}
           />
         )}
       </div>

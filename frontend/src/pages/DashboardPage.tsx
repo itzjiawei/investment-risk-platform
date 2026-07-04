@@ -52,6 +52,7 @@ type DashboardPageProps = {
   refreshMarketData: () => void;
   marketDataLoading: boolean;
   marketDataMessage: string;
+  dashboardLoading: boolean;
 };
 
 const PIE_COLORS = [
@@ -76,6 +77,7 @@ function DashboardPage({
   refreshMarketData,
   marketDataLoading,
   marketDataMessage,
+  dashboardLoading,
 }: DashboardPageProps) {
   const hasSectorExposure = sectorExposure.length > 0;
 
@@ -132,6 +134,10 @@ function DashboardPage({
 
       {marketDataMessage && (
         <p className="status-message">{marketDataMessage}</p>
+      )}
+
+      {dashboardLoading && (
+        <p className="status-message">Loading portfolio dashboard...</p>
       )}
 
       {risk && (
