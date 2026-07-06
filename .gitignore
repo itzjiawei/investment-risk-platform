@@ -22,7 +22,11 @@ data/large_prices.csv
 data/large_assets.csv
 data/large_holdings.csv
 
+# Local generated reports/cache
+reports/
+backend/reports/
+.cache/
+backend/.cache/
+
 # MacOS
 .DS_Store
-
-data/*.csv

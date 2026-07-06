@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from app.schemas.requests import PortfolioComparisonRequest, StressTestRequest
 from app.services.performance_service import (
@@ -10,6 +10,12 @@ from app.services.dashboard_cache_service import (
     get_portfolio_dashboard_data,
     invalidate_portfolio_dashboard_cache,
 )
+from app.services.auth_service import (
+    get_current_user,
+    require_market_refresh_permission,
+    require_pdf_export_permission,
+)
+from app.services.audit_service import create_audit_log
 from app.services.pdf_report_service import generate_pdf_risk_report
 from app.services.portfolio_service import (
     calculate_portfolio_holdings,
@@ -23,7 +29,7 @@ from app.services.portfolio_service import (
 )
 
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
 
 
 @router.get("/portfolio/{portfolio_id}/value")
@@ -62,20 +68,59 @@ def get_risk_contribution(portfolio_id: int):
 
 
 @router.post("/portfolio/{portfolio_id}/market-data/refresh")
-def refresh_portfolio_market_prices(portfolio_id: int):
+def refresh_portfolio_market_prices(
+    portfolio_id: int,
+    request: Request,
+    current_user: dict = Depends(require_market_refresh_permission),
+):
     result = refresh_market_data(portfolio_id=portfolio_id)
     invalidate_portfolio_dashboard_cache(portfolio_id)
+    create_audit_log(
+        action="market_data_refresh",
+        status="success",
+        user=current_user,
+        request=request,
+        resource_type="portfolio",
+        resource_id=portfolio_id,
+        metadata={
+            "rows_inserted": result.get("rows_inserted"),
+            "updated_tickers": result.get("updated_tickers"),
+            "failed_tickers": result.get("failed_tickers"),
+        },
+    )
     return result
 
 
 @router.get("/portfolio/{portfolio_id}/risk-report/pdf")
-def download_risk_report_pdf(portfolio_id: int):
+def download_risk_report_pdf(
+    portfolio_id: int,
+    request: Request,
+    current_user: dict = Depends(require_pdf_export_permission),
+):
     try:
         pdf_bytes = generate_pdf_risk_report(portfolio_id)
     except ValueError as exc:
+        create_audit_log(
+            action="pdf_report_export",
+            status="failed",
+            user=current_user,
+            request=request,
+            resource_type="portfolio",
+            resource_id=portfolio_id,
+            metadata={"reason": str(exc)},
+        )
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     filename = f"portfolio-{portfolio_id}-risk-report.pdf"
+    create_audit_log(
+        action="pdf_report_export",
+        status="success",
+        user=current_user,
+        request=request,
+        resource_type="portfolio",
+        resource_id=portfolio_id,
+        metadata={"filename": filename},
+    )
 
     return Response(
         content=pdf_bytes,

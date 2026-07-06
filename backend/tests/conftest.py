@@ -8,11 +8,33 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.main import app
+from app.services.auth_service import get_current_user
 
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    app.dependency_overrides[get_current_user] = lambda: {
+        "user_id": 1,
+        "email": "demo@example.com",
+        "full_name": "Demo User",
+        "role": "admin",
+        "is_active": True,
+    }
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def unauthenticated_client():
+    app.dependency_overrides.clear()
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture

@@ -96,6 +96,28 @@ body {
   font-weight: 700;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.logout-button {
+  min-height: 40px;
+  padding: 0 14px;
+  color: #fffdf8;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.logout-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .status-dot {
   width: 9px;
   height: 9px;
@@ -143,6 +165,72 @@ body {
 .workspace {
   display: grid;
   gap: 24px;
+}
+
+.login-page {
+  display: grid;
+  place-items: center;
+  width: min(1440px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.login-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 0.55fr);
+  gap: clamp(24px, 5vw, 56px);
+  width: min(980px, 100%);
+  padding: clamp(28px, 5vw, 54px);
+  color: white;
+  background:
+    linear-gradient(120deg, rgba(8, 32, 71, 0.98), rgba(13, 53, 107, 0.94)),
+    var(--navy);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: var(--shadow);
+}
+
+.login-panel h1 {
+  margin: 0 0 18px;
+  color: #fffdf8;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(38px, 6vw, 68px);
+  font-weight: 600;
+  line-height: 0.98;
+}
+
+.login-form {
+  display: grid;
+  align-content: center;
+  gap: 16px;
+  padding: 22px;
+  color: var(--ink);
+  background: rgba(255, 253, 248, 0.96);
+  border: 1px solid var(--line);
+}
+
+.login-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--navy);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.login-form input {
+  width: 100%;
+}
+
+.login-error {
+  margin: 0;
+  padding: 10px 12px;
+  color: #8c281f;
+  background: #fae8e5;
+  border-left: 4px solid var(--red);
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .hero {

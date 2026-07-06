@@ -50,6 +50,8 @@ type DashboardPageProps = {
   formatPercent: (value: number) => string;
   downloadRiskReport: () => void;
   refreshMarketData: () => void;
+  canExportPdf: boolean;
+  canRefreshMarketData: boolean;
   marketDataLoading: boolean;
   marketDataMessage: string;
   dashboardLoading: boolean;
@@ -75,6 +77,8 @@ function DashboardPage({
   formatPercent,
   downloadRiskReport,
   refreshMarketData,
+  canExportPdf,
+  canRefreshMarketData,
   marketDataLoading,
   marketDataMessage,
   dashboardLoading,
@@ -117,15 +121,28 @@ function DashboardPage({
             className="secondary-button"
             type="button"
             onClick={refreshMarketData}
-            disabled={marketDataLoading}
+            disabled={marketDataLoading || !canRefreshMarketData}
+            title={
+              canRefreshMarketData
+                ? undefined
+                : "Your role cannot update portfolio prices."
+            }
           >
-            {marketDataLoading ? "Updating Prices..." : "Update Portfolio Prices"}
+            {marketDataLoading
+              ? "Updating Prices..."
+              : "Update Portfolio Prices"}
           </button>
 
           <button
             className="primary-button"
             type="button"
             onClick={downloadRiskReport}
+            disabled={!canExportPdf}
+            title={
+              canExportPdf
+                ? undefined
+                : "Your role cannot export PDF risk reports."
+            }
           >
             Download Risk Report
           </button>

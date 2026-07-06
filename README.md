@@ -220,7 +220,18 @@ CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 OLLAMA_URL=http://localhost:11434/api/generate
 OLLAMA_MODEL=llama3.2:3b
 YFINANCE_REFRESH_PERIOD=1mo
+MARKET_REFRESH_ENABLED=true
+MARKET_REFRESH_DAYS=mon,tue,wed,thu,fri
+MARKET_REFRESH_HOUR_UTC=22
+MARKET_REFRESH_MINUTE_UTC=0
 DB_SSLMODE=
+JWT_SECRET_KEY=replace-with-a-long-random-secret
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=480
+DEMO_USER_EMAIL=demo@example.com
+DEMO_USER_PASSWORD=demo123
+DEMO_USER_FULL_NAME=Demo User
+NOTIFICATION_REPORT_RECIPIENTS=
 ```
 
 Frontend variables:
@@ -257,10 +268,11 @@ docker compose up -d postgres
 
 The bundled Docker configuration exposes PostgreSQL on local port `5433`.
 
-Seed or refresh demo database content if needed:
+Run migrations, then seed or refresh demo database content if needed:
 
 ```bash
 cd backend
+alembic upgrade head
 python seed_database.py
 ```
 
@@ -291,6 +303,33 @@ Backend runs on:
 
 ```text
 http://127.0.0.1:8000
+```
+
+### Database Migrations
+
+Alembic owns database schema creation and future schema changes. Seeding is separate: migrations create tables, while `seed_database.py` inserts or updates demo rows from CSV files.
+
+Run migrations locally against Docker PostgreSQL:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+Then seed demo data:
+
+```bash
+python seed_database.py
+```
+
+The seed script no longer replaces tables. It upserts assets, portfolios, holdings, and demo price rows so refreshed yfinance prices are not wiped by reseeding.
+
+Create a future migration after changing SQLAlchemy models:
+
+```bash
+cd backend
+alembic revision --autogenerate -m "describe change"
+alembic upgrade head
 ```
 
 ### Market Data Refresh
@@ -332,6 +371,76 @@ You can inspect the latest stored market data status with:
 ```bash
 curl http://127.0.0.1:8000/api/market-data/status
 ```
+
+### Scheduled Market Refresh
+
+The backend also starts a lightweight APScheduler background job that refreshes all unique held tickers on a weekday UTC schedule. By default it runs Monday through Friday at `22:00 UTC`, intended to be after US market close while still being simple and free-tier friendly.
+
+Scheduler environment variables:
+
+```text
+MARKET_REFRESH_ENABLED=true
+MARKET_REFRESH_DAYS=mon,tue,wed,thu,fri
+MARKET_REFRESH_HOUR_UTC=22
+MARKET_REFRESH_MINUTE_UTC=0
+```
+
+The scheduled job reuses the same yfinance refresh service as the manual buttons, writes new price rows to PostgreSQL, skips duplicates where possible, invalidates the dashboard cache, and writes an audit log with updated tickers, failed tickers, and rows inserted. Ticker-level failures are captured in the summary and do not stop the rest of the refresh.
+
+Admins can inspect scheduler state:
+
+```bash
+curl http://127.0.0.1:8000/api/jobs/status
+```
+
+Admins can trigger the scheduled all-ticker refresh manually:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/jobs/market-refresh/run-now
+```
+
+The frontend shows this in the admin-only Background Jobs tab. On Render free tier, scheduled jobs only run while the web service process is awake; if the service sleeps, the in-process scheduler will not execute until Render wakes the app again. For production-grade guaranteed scheduling, use an external cron/ping service or Render Cron Job later.
+
+### Notifications
+
+The app has a modular notification layer:
+
+```text
+NotificationService -> NotificationProvider -> ConsoleNotificationProvider
+```
+
+Schedulers and API routes call `NotificationService`; they do not depend on any specific vendor. The current provider is a console provider that logs that a report notification would have been sent, including recipient, report name, and attachment filename. This keeps the design open for future Slack, Teams, SMS, or paid email providers without changing scheduler logic.
+
+Notification environment variables:
+
+```text
+NOTIFICATION_REPORT_RECIPIENTS=admin@example.com,manager@example.com
+```
+
+Manual testing:
+
+1. Set `NOTIFICATION_REPORT_RECIPIENTS` in `backend/.env` if you want scheduled report notifications.
+2. Start the backend and frontend.
+3. Log in as an admin.
+4. Open Background Jobs and use Send Test Report.
+5. Check backend logs for the notification message.
+
+The admin-only API endpoint is:
+
+```text
+POST /api/notifications/send-report
+```
+
+Example body:
+
+```json
+{
+  "portfolio_id": 1,
+  "recipient_email": "admin@example.com"
+}
+```
+
+After a successful scheduled market refresh, the scheduler generates PDF risk reports for configured recipients and logs that the notifications would have been sent. Notification success/failure is audited without crashing the scheduler.
 
 ### Backend Tests
 
@@ -412,6 +521,77 @@ Set `OLLAMA_URL` and `OLLAMA_MODEL` if your Ollama server or model name differs.
 
 ---
 
+## Authentication
+
+The app uses a simple JWT login flow with role-based access control:
+
+1. The frontend posts email/password to `POST /api/auth/login`.
+2. The backend verifies the password with passlib/bcrypt.
+3. The backend returns a bearer token and user role metadata.
+4. The frontend stores the token in `localStorage` and sends it as:
+
+```text
+Authorization: Bearer <token>
+```
+
+Public endpoints:
+
+- `GET /`
+- `POST /api/auth/login`
+
+Protected endpoints include portfolio analytics, market data, PDF export, AI, comparison, and performance routes.
+
+RBAC roles:
+
+| Role | Dashboard / Analytics / Comparison / Performance | AI Copilot | PDF Export | Update Portfolio Prices | Manage Users |
+| --- | --- | --- | --- | --- | --- |
+| `admin` | Yes | Yes | Yes | Yes | Yes |
+| `portfolio_manager` | Yes | Yes | Yes | Yes | No |
+| `analyst` | Yes | Yes | Yes | No | No |
+| `viewer` | Yes | No | No | No | No |
+
+Demo users:
+
+```text
+admin@example.com / admin123
+manager@example.com / manager123
+analyst@example.com / analyst123
+viewer@example.com / viewer123
+```
+
+For backward-compatible local development, `demo@example.com / demo123` is also seeded as an admin by default. The JWT includes the user role, while backend permission dependencies still load the current user from the database before authorizing protected actions. Unauthenticated requests return `401`; authenticated users without the required role receive `403`.
+
+For deployment, set a long random `JWT_SECRET_KEY` in Render and do not commit real secrets. The seed script creates the configurable demo user from `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, and `DEMO_USER_FULL_NAME`, plus the role-specific demo users above.
+
+---
+
+## Audit Logging
+
+The backend records database-backed audit logs for important user and system actions. This gives admins a review trail for security, operations, and finance/compliance style questions such as who exported a report, who refreshed market prices, and who attempted a restricted action.
+
+Logged actions include:
+
+- Successful and failed login attempts
+- Market data refreshes
+- PDF risk report exports
+- AI risk summary generation
+- AI Copilot questions
+- AI portfolio comparison generation
+- RBAC forbidden access attempts
+- Admin user-list viewing
+
+Audit logs are stored in the `audit_logs` table with fields for user id, email, role, action, resource type/id, status, IP address, user agent, metadata, and timestamp. Passwords and JWT tokens are not logged.
+
+Admins can view recent logs in the frontend Audit Logs tab or through:
+
+```text
+GET /api/audit-logs
+```
+
+Optional filters are supported: `action`, `user_email`, `resource_type`, `status`, and `limit`. The endpoint is admin-only.
+
+---
+
 ## GitHub Actions Locally
 
 GitHub Actions runs in GitHub on every push and pull request. If you want to approximate the checks locally, run:
@@ -464,14 +644,20 @@ Neon usually requires SSL. This app supports Neon SSL in two ways:
 - If the host contains `neon.tech`, the backend automatically uses SSL.
 - You can also set `DB_SSLMODE=require` explicitly on Render.
 
-Database seed command:
+Run migrations against Neon from an environment where `DATABASE_URL` points to Neon:
 
 ```bash
 cd backend
+alembic upgrade head
+```
+
+Seed demo data only after migrations have created the schema:
+
+```bash
 python seed_database.py
 ```
 
-Run this against Neon only after setting `DATABASE_URL` to the Neon connection string in the environment where the command runs.
+Run these against Neon only after setting `DATABASE_URL` to the Neon connection string in the environment where the commands run. Do not commit Neon credentials.
 
 ### Render Backend
 
@@ -494,6 +680,16 @@ DB_SSLMODE=require
 OLLAMA_URL=http://localhost:11434/api/generate
 OLLAMA_MODEL=llama3.2:3b
 YFINANCE_REFRESH_PERIOD=1mo
+MARKET_REFRESH_ENABLED=true
+MARKET_REFRESH_DAYS=mon,tue,wed,thu,fri
+MARKET_REFRESH_HOUR_UTC=22
+MARKET_REFRESH_MINUTE_UTC=0
+JWT_SECRET_KEY=<long random secret>
+JWT_EXPIRE_MINUTES=480
+DEMO_USER_EMAIL=demo@example.com
+DEMO_USER_PASSWORD=<temporary demo password>
+DEMO_USER_FULL_NAME=Demo User
+NOTIFICATION_REPORT_RECIPIENTS=<comma-separated report recipients>
 ```
 
 Health check endpoint:

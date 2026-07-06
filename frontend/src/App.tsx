@@ -6,11 +6,20 @@ import PortfolioComparisonPage from "./pages/PortfolioComparisonPage";
 import AiCopilotPage from "./pages/AiCopilotPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import DashboardPage from "./pages/DashboardPage";
+import LoginPage from "./pages/LoginPage";
+import AuditLogsPage from "./pages/AuditLogsPage";
+import BackgroundJobsPage from "./pages/BackgroundJobsPage";
 import { API_BASE_URL } from "./config";
 
 type Portfolio = {
   portfolio_id: number;
   portfolio_name: string;
+};
+
+type AuthUser = {
+  email: string;
+  full_name: string;
+  role: "admin" | "portfolio_manager" | "analyst" | "viewer";
 };
 
 type RiskMetrics = {
@@ -93,6 +102,9 @@ type MarketDataRefreshResult = {
   message: string;
 };
 
+const AUTH_TOKEN_STORAGE_KEY = "investment-risk-auth-token";
+const AUTH_USER_STORAGE_KEY = "investment-risk-auth-user";
+
 function formatCurrency(value: number) {
   return `$${value.toLocaleString(undefined, {
     maximumFractionDigits: 2,
@@ -104,8 +116,29 @@ function formatPercent(value: number) {
 }
 
 function App() {
+  const [authToken, setAuthToken] = useState(() =>
+    localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+  );
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => {
+    const storedUser = localStorage.getItem(AUTH_USER_STORAGE_KEY);
+
+    if (!storedUser) return null;
+
+    try {
+      return JSON.parse(storedUser) as AuthUser;
+    } catch {
+      localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+      return null;
+    }
+  });
   const [activePage, setActivePage] = useState<
-    "dashboard" | "performance" | "comparison" | "AI" | "analytics"
+    | "dashboard"
+    | "performance"
+    | "comparison"
+    | "AI"
+    | "analytics"
+    | "audit"
+    | "jobs"
   >(
     "dashboard"
   );
@@ -134,14 +167,54 @@ function App() {
   const [marketDataMessage, setMarketDataMessage] = useState("");
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const dashboardRequestIdRef = useRef(0);
+  const canRefreshMarketData =
+    authUser?.role === "admin" || authUser?.role === "portfolio_manager";
+  const canExportPdf =
+    authUser?.role === "admin" ||
+    authUser?.role === "portfolio_manager" ||
+    authUser?.role === "analyst";
+  const canUseAi = canExportPdf;
+  const canViewAuditLogs = authUser?.role === "admin";
 
   useEffect(() => {
+    if (!authToken) {
+      delete axios.defaults.headers.common.Authorization;
+      return;
+    }
+
+    axios.defaults.headers.common.Authorization = `Bearer ${authToken}`;
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken) return;
+
+    const interceptorId = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          handleLogout();
+        }
+
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      axios.interceptors.response.eject(interceptorId);
+    };
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!authToken) return;
+
     axios.get(`${API_BASE_URL}/api/portfolios`).then((res) => {
       setPortfolios(res.data);
     });
-  }, []);
+  }, [authToken]);
 
   function loadDashboardData(portfolioId: number) {
+    if (!authToken) return;
+
     const requestId = dashboardRequestIdRef.current + 1;
     dashboardRequestIdRef.current = requestId;
     setDashboardLoading(true);
@@ -170,8 +243,33 @@ function App() {
   }
 
   useEffect(() => {
+    if (!authToken) return;
+
     loadDashboardData(selectedPortfolioId);
-  }, [selectedPortfolioId]);
+  }, [authToken, selectedPortfolioId]);
+
+  function handleLogin(token: string, user: AuthUser) {
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+    localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+    setAuthToken(token);
+    setAuthUser(user);
+  }
+
+  function handleLogout() {
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+    delete axios.defaults.headers.common.Authorization;
+    setAuthToken(null);
+    setAuthUser(null);
+    setPortfolios([]);
+    setRisk(null);
+    setReturns([]);
+    setHoldings([]);
+    setSectorExposure([]);
+    setRiskContribution([]);
+    setStressResult(null);
+    setMarketDataMessage("");
+  }
 
   function runStressTest() {
     axios
@@ -184,6 +282,13 @@ function App() {
   }
 
   function refreshMarketData() {
+    if (!canRefreshMarketData) {
+      setMarketDataMessage(
+        "You do not have permission to update portfolio prices."
+      );
+      return;
+    }
+
     setMarketDataLoading(true);
     setMarketDataMessage("");
 
@@ -221,6 +326,13 @@ function App() {
   }
 
   function downloadRiskReport() {
+    if (!canExportPdf) {
+      setMarketDataMessage(
+        "You do not have permission to download risk reports."
+      );
+      return;
+    }
+
     axios
       .get(
         `${API_BASE_URL}/api/portfolio/${selectedPortfolioId}/risk-report/pdf`,
@@ -248,6 +360,20 @@ function App() {
       });
   }
 
+  const navItems = [
+    { page: "dashboard", label: "Dashboard", disabled: false },
+    { page: "analytics", label: "Analytics", disabled: false },
+    { page: "comparison", label: "Comparison", disabled: false },
+    { page: "AI", label: "AI Copilot", disabled: !canUseAi },
+    { page: "performance", label: "Performance Lab", disabled: false },
+    { page: "jobs", label: "Background Jobs", disabled: !canViewAuditLogs },
+    { page: "audit", label: "Audit Logs", disabled: !canViewAuditLogs },
+  ] as const;
+
+  if (!authToken) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
   return (
     <main className="page">
       <header className="app-header">
@@ -261,26 +387,34 @@ function App() {
           </div>
         </div>
 
-        <div className="header-status">
-          <span className="status-dot" aria-hidden="true" />
-          Live analytics
+        <div className="header-actions">
+          <div className="header-status">
+            <span className="status-dot" aria-hidden="true" />
+            {authUser?.role ?? "Authenticated"}
+          </div>
+
+          <button className="logout-button" type="button" onClick={handleLogout}>
+            Logout
+          </button>
         </div>
       </header>
 
       <nav className="nav-tabs" aria-label="Primary sections">
-        {[
-          ["dashboard", "Dashboard"],
-          ["analytics", "Analytics"],
-          ["comparison", "Comparison"],
-          ["AI", "AI Copilot"],
-          ["performance", "Performance Lab"],
-        ].map(([page, label]) => (
+        {navItems.map(({ page, label, disabled }) => (
           <button
             key={page}
             className={activePage === page ? "active-tab" : ""}
+            disabled={disabled}
+            title={
+              disabled
+                ? "Your role does not include access to this feature."
+                : undefined
+            }
             onClick={() =>
               setActivePage(
                 page as "dashboard" | "performance" | "comparison" | "AI" | "analytics"
+                | "audit"
+                | "jobs"
               )
             }
           >
@@ -292,7 +426,17 @@ function App() {
       <div className="workspace">
         {activePage === "performance" && <PerformanceLab />}
         {activePage === "comparison" && <PortfolioComparisonPage />}
-        {activePage === "AI" && <AiCopilotPage />}
+        {activePage === "AI" &&
+          (canUseAi ? (
+            <AiCopilotPage />
+          ) : (
+            <section className="chart-card">
+              <h2>Access restricted</h2>
+              <p className="subtitle">
+                Your role does not include access to AI Copilot.
+              </p>
+            </section>
+          ))}
         {activePage === "analytics" && (
           <AnalyticsPage
             holdings={holdings}
@@ -306,6 +450,30 @@ function App() {
           />
         )}
 
+        {activePage === "audit" &&
+          (canViewAuditLogs ? (
+            <AuditLogsPage />
+          ) : (
+            <section className="chart-card">
+              <h2>Access restricted</h2>
+              <p className="subtitle">
+                Your role does not include access to audit logs.
+              </p>
+            </section>
+          ))}
+
+        {activePage === "jobs" &&
+          (canViewAuditLogs ? (
+            <BackgroundJobsPage />
+          ) : (
+            <section className="chart-card">
+              <h2>Access restricted</h2>
+              <p className="subtitle">
+                Your role does not include access to background jobs.
+              </p>
+            </section>
+          ))}
+
         {activePage === "dashboard" && (
           <DashboardPage
             portfolios={portfolios}
@@ -318,6 +486,8 @@ function App() {
             formatPercent={formatPercent}
             downloadRiskReport={downloadRiskReport}
             refreshMarketData={refreshMarketData}
+            canExportPdf={canExportPdf}
+            canRefreshMarketData={canRefreshMarketData}
             marketDataLoading={marketDataLoading}
             marketDataMessage={marketDataMessage}
             dashboardLoading={dashboardLoading}

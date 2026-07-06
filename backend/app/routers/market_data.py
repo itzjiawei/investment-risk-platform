@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
 
 from app.database.repository import (
     load_assets,
@@ -11,9 +11,14 @@ from app.services.market_data_service import (
     refresh_market_data,
 )
 from app.services.dashboard_cache_service import invalidate_all_dashboard_cache
+from app.services.auth_service import (
+    get_current_user,
+    require_market_refresh_permission,
+)
+from app.services.audit_service import create_audit_log
 
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(get_current_user)])
 
 
 @router.get("/assets")
@@ -41,9 +46,25 @@ def get_prices(limit: int = 20):
 
 
 @router.post("/market-data/refresh")
-def refresh_market_prices():
+def refresh_market_prices(
+    request: Request,
+    current_user: dict = Depends(require_market_refresh_permission),
+):
     result = refresh_market_data()
     invalidate_all_dashboard_cache()
+    create_audit_log(
+        action="market_data_refresh",
+        status="success",
+        user=current_user,
+        request=request,
+        resource_type="market_data",
+        resource_id="global",
+        metadata={
+            "rows_inserted": result.get("rows_inserted"),
+            "updated_tickers": result.get("updated_tickers"),
+            "failed_tickers": result.get("failed_tickers"),
+        },
+    )
     return result
 
 

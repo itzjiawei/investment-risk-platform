@@ -18,3 +18,23 @@ services:
         value: llama3.2:3b
       - key: YFINANCE_REFRESH_PERIOD
         value: 1mo
+      - key: MARKET_REFRESH_ENABLED
+        value: true
+      - key: MARKET_REFRESH_DAYS
+        value: mon,tue,wed,thu,fri
+      - key: MARKET_REFRESH_HOUR_UTC
+        value: 22
+      - key: MARKET_REFRESH_MINUTE_UTC
+        value: 0
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: JWT_EXPIRE_MINUTES
+        value: 480
+      - key: DEMO_USER_EMAIL
+        value: demo@example.com
+      - key: DEMO_USER_PASSWORD
+        sync: false
+      - key: DEMO_USER_FULL_NAME
+        value: Demo User
+      - key: NOTIFICATION_REPORT_RECIPIENTS
+        sync: false
