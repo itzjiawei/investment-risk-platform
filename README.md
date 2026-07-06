@@ -4,9 +4,9 @@
 
 ## Overview
 
-Investment Risk Analytics Platform is a full-stack portfolio risk monitoring application for analyzing holdings, returns, sector exposure, stress scenarios, AI-assisted risk summaries, PDF reports, market data refreshes, and analytics engine performance.
+Investment Risk Analytics Platform is a full-stack application for monitoring portfolio risk. It calculates portfolio value, returns, sector exposure, risk contribution, stress test results, AI-assisted summaries, and PDF reports.
 
-The project is designed as an interview-ready, production-style example of a modern financial analytics system: modular FastAPI backend, React + TypeScript frontend, PostgreSQL persistence, Alembic migrations, JWT authentication, RBAC, audit logging, background jobs, CI/CD, and cloud deployment support.
+The application is split into a React frontend, a FastAPI backend, and a PostgreSQL database. The backend uses Alembic for schema changes, JWT for authentication, RBAC for endpoint permissions, audit logs for sensitive actions, and APScheduler for background market data refreshes.
 
 ## Features
 
@@ -23,7 +23,7 @@ The project is designed as an interview-ready, production-style example of a mod
 - Role-Based Access Control for admin, portfolio manager, analyst, and viewer roles.
 - Database-backed audit logs for security and operational actions.
 - APScheduler background job for scheduled weekday market refreshes.
-- Console-based notification abstraction ready for future email/Slack/Teams providers.
+- Console-based notification abstraction for scheduled report notifications.
 - Backend tests with pytest and FastAPI TestClient.
 - GitHub Actions CI for backend tests and frontend builds.
 - Deployment configuration for Render, Vercel, and Neon Postgres.
@@ -75,7 +75,7 @@ flowchart LR
 
 Backend routes stay thin and call service-layer functions. The database layer centralizes engine configuration, repository queries, and SQLAlchemy models. Alembic owns schema changes, while seed scripts only populate demo data after migrations have run.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for architecture diagrams and [docs/ENGINEERING.md](docs/ENGINEERING.md) for folder-by-folder developer documentation.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams and [docs/ENGINEERING.md](docs/ENGINEERING.md) for folder and service documentation.
 
 ## Authentication
 
@@ -220,7 +220,7 @@ Install Ollama and pull the model locally:
 ollama pull llama3.2:3b
 ```
 
-Hosted Render free-tier deployments usually will not run Ollama locally. In that case AI endpoints return helpful fallback messages and the rest of the platform continues working.
+Hosted Render free-tier deployments usually do not run Ollama locally. In that case AI endpoints return fallback messages and the rest of the platform continues working.
 
 ## Database
 
@@ -237,7 +237,7 @@ Local PostgreSQL runs through Docker on host port `5433`. Production PostgreSQL 
 
 ## Alembic Migrations
 
-Alembic controls schema creation and future schema changes.
+Alembic controls schema creation and later schema changes.
 
 Run migrations:
 
@@ -450,7 +450,7 @@ POST /api/notifications/send-report
 
 ## Screenshots
 
-Screenshots are intentionally not committed yet. Suggested future screenshots:
+No screenshots are committed yet. Useful screenshots to add later:
 
 - Dashboard with risk metrics and sector exposure.
 - Analytics stress test view.
@@ -458,14 +458,14 @@ Screenshots are intentionally not committed yet. Suggested future screenshots:
 - Audit Logs admin page.
 - Background Jobs admin page.
 
-## Future Improvements
+## Maintenance Notes
 
 - Add a dedicated test database or ephemeral database container for integration tests.
 - Add route-level code splitting to reduce frontend bundle size.
 - Move frontend API calls into a typed service layer.
 - Add SQLAlchemy ORM-based repositories or query objects for more complex persistence.
 - Add external guaranteed scheduling for production market refreshes.
-- Add a real notification provider such as email, Slack, or Teams when a free/approved provider is selected.
+- Add a notification provider such as email, Slack, or Teams if the deployment requires outbound notifications.
 - Add a formal `LICENSE` file before public distribution.
 - Add screenshots and architecture images after UI is finalized.
 

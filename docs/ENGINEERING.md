@@ -1,6 +1,6 @@
 # Engineering Guide
 
-This document explains how the Investment Risk Analytics Platform is organized and what each major part is responsible for.
+This document explains the repository layout and the responsibility of each major backend and frontend module.
 
 ## Repository Structure
 
@@ -50,7 +50,7 @@ Compatibility modules such as `backend/app/analytics.py`, `backend/app/ai_chat.p
 - `frontend/src/App.css` and `frontend/src/index.css`: Application styling.
 - `frontend/public/`: Static browser assets such as favicon and icon sprite.
 
-The frontend currently uses page-level components rather than a deeper shared component library. If the UI grows, reusable controls can move into `frontend/src/components/`, API wrappers into `frontend/src/services/`, and auth helpers into `frontend/src/contexts/`.
+The frontend currently uses page-level components rather than a shared component library. If the UI grows, reusable controls can move into `frontend/src/components/`, API wrappers into `frontend/src/services/`, and auth helpers into `frontend/src/contexts/`.
 
 ## Database Tables
 
@@ -65,7 +65,7 @@ The frontend currently uses page-level components rather than a deeper shared co
 
 The in-process APScheduler job starts with the FastAPI lifespan hook when `MARKET_REFRESH_ENABLED=true`. It refreshes all held tickers using the same market data service as manual refresh, invalidates dashboard cache, writes audit logs, records last-run status, and triggers console notification flow for configured report recipients.
 
-Render free-tier services may sleep, so this scheduler is best-effort in hosted free-tier deployments. A production system that requires guaranteed execution should move scheduling to Render Cron Jobs or another external scheduler.
+Render free-tier services may sleep, so this scheduler is best-effort in hosted deployments on that tier. Deployments that require guaranteed execution should use Render Cron Jobs or another external scheduler.
 
 ## Middleware
 

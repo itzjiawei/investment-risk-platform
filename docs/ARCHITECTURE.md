@@ -1,6 +1,6 @@
 # Architecture Diagrams
 
-This document captures the current architecture of the Investment Risk Analytics Platform. Diagrams use Mermaid so they render directly on GitHub.
+This document describes the current architecture of the Investment Risk Analytics Platform. Diagrams use Mermaid so they render directly on GitHub.
 
 ## 1. Overall System Architecture
 
@@ -251,7 +251,7 @@ flowchart LR
     Render --> Neon["Neon Postgres\nDATABASE_URL"]
 
     Render --> Yahoo["Yahoo Finance via yfinance"]
-    Render -. "Optional local only / usually unavailable on Render free tier" .-> Ollama["Ollama"]
+    Render -. "Optional local service / usually unavailable on Render free tier" .-> Ollama["Ollama"]
 
     GitHub["GitHub Repository"] --> Actions["GitHub Actions CI"]
     Actions --> BackendTests["Backend pytest"]
