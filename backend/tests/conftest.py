@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from unittest.mock import Mock
 
 import pandas as pd
 import pytest
@@ -9,6 +10,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.main import app
 from app.services.auth_service import get_current_user
+
+
+@pytest.fixture(autouse=True)
+def mock_audit_logging(monkeypatch):
+    """Keep tests from writing audit rows to the configured database."""
+
+    for target in (
+        "app.routers.ai.create_audit_log",
+        "app.routers.auth.create_audit_log",
+        "app.routers.market_data.create_audit_log",
+        "app.routers.portfolio.create_audit_log",
+        "app.services.auth_service.create_audit_log",
+        "app.services.market_refresh_job_service.create_audit_log",
+        "app.services.notification_service.create_audit_log",
+    ):
+        monkeypatch.setattr(target, Mock())
 
 
 @pytest.fixture
