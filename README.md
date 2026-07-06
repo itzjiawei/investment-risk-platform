@@ -75,7 +75,7 @@ flowchart LR
 
 Backend routes stay thin and call service-layer functions. The database layer centralizes engine configuration, repository queries, and SQLAlchemy models. Alembic owns schema changes, while seed scripts only populate demo data after migrations have run.
 
-See [docs/ENGINEERING.md](docs/ENGINEERING.md) for folder-by-folder developer documentation.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for architecture diagrams and [docs/ENGINEERING.md](docs/ENGINEERING.md) for folder-by-folder developer documentation.
 
 ## Authentication
 
