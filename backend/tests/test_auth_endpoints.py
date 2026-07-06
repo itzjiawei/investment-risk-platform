@@ -57,6 +57,40 @@ def test_login_success(unauthenticated_client, monkeypatch):
     assert data["role"] == "admin"
 
 
+def test_login_does_not_trigger_dashboard_analytics(
+    unauthenticated_client,
+    monkeypatch,
+):
+    mocked_dashboard = Mock()
+    mocked_user = {
+        "user_id": 1,
+        "email": "demo@example.com",
+        "full_name": "Demo User",
+        "hashed_password": "not-used",
+        "role": "admin",
+        "is_active": True,
+    }
+    monkeypatch.setattr(
+        "app.routers.auth.authenticate_user",
+        Mock(return_value=mocked_user),
+    )
+    monkeypatch.setattr(
+        "app.services.dashboard_cache_service.get_portfolio_dashboard_data",
+        mocked_dashboard,
+    )
+
+    response = unauthenticated_client.post(
+        "/api/auth/login",
+        json={
+            "email": "demo@example.com",
+            "password": "demo123",
+        },
+    )
+
+    assert response.status_code == 200
+    mocked_dashboard.assert_not_called()
+
+
 def test_login_failure(unauthenticated_client, monkeypatch):
     monkeypatch.setattr(
         "app.routers.auth.authenticate_user",

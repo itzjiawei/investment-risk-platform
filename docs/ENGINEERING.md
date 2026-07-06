@@ -31,7 +31,7 @@ Compatibility modules such as `backend/app/analytics.py`, `backend/app/ai_chat.p
 ## Backend Services
 
 - `portfolio_service.py`: Portfolio value, returns, risk metrics, holdings, sector exposure, risk contribution, stress testing, and portfolio comparison.
-- `market_data_service.py`: yfinance refresh logic, ticker mapping, batched downloads, retry/backoff behavior, price upserts, failed ticker reporting, and market data status.
+- `market_data_service.py`: yfinance refresh logic, ticker mapping, batched downloads, retry/backoff behavior, individual fallback for empty batch responses, price upserts, failed ticker diagnostics, and market data status.
 - `dashboard_cache_service.py`: Short-lived in-memory cache for consolidated dashboard analytics.
 - `ai_analysis_service.py`: AI summary, AI Q&A, and AI comparison orchestration.
 - `ollama_service.py`: Local Ollama HTTP integration and fallback handling.

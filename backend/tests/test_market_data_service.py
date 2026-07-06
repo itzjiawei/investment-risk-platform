@@ -190,7 +190,11 @@ def test_refresh_market_data_handles_failed_ticker(monkeypatch):
             {
                 "ticker": "BAD",
                 "yfinance_ticker": "BAD.SI",
-                "reason": "No price data returned",
+                "reason": "No price data returned from yfinance",
+                "category": "empty_response",
+                "period": "5d",
+                "interval": "1d",
+                "source": "individual_fallback",
             }
         ],
         "rows_inserted": 2,
@@ -287,12 +291,100 @@ def test_market_data_batch_download_retries_after_rate_limit(monkeypatch):
     monkeypatch.setattr(market_data_service, "_download_tickers", flaky_download)
     monkeypatch.setattr(market_data_service, "_sleep", sleep_mock)
 
-    histories, failures = market_data_service._download_ticker_histories(
+    histories, failures, sources = market_data_service._download_ticker_histories(
         ["AAPL"],
         "5d",
     )
 
     assert failures == {}
     assert "AAPL" in histories
+    assert sources["AAPL"] == "batch"
     assert attempts["count"] == 2
     sleep_mock.assert_called_once()
+
+
+def test_refresh_market_data_uses_individual_fallback_when_batch_is_empty(
+    monkeypatch,
+):
+    fallback_download = Mock(
+        return_value=pd.DataFrame(
+            {"Close": [500.00]},
+            index=pd.to_datetime(["2026-07-03"]),
+        )
+    )
+
+    monkeypatch.setattr(
+        market_data_service,
+        "_get_relevant_assets",
+        lambda portfolio_id=None: [{"asset_id": 1, "ticker": "SPY"}],
+    )
+    monkeypatch.setattr(
+        market_data_service,
+        "_download_tickers",
+        lambda tickers, period: pd.DataFrame(
+            {"Close": [None]},
+            index=pd.to_datetime(["2026-07-03"]),
+        ),
+    )
+    monkeypatch.setattr(
+        market_data_service,
+        "_download_ticker_history",
+        fallback_download,
+    )
+    monkeypatch.setattr(
+        market_data_service,
+        "_insert_new_price_rows",
+        lambda asset_id, price_rows: len(price_rows),
+    )
+
+    result = market_data_service.refresh_market_data(period="5d")
+
+    assert result["updated_tickers"] == ["SPY"]
+    assert result["failed_tickers"] == []
+    assert result["rows_inserted"] == 1
+    fallback_download.assert_called_once_with("SPY", "5d")
+
+
+def test_refresh_market_data_reports_empty_response_diagnostics(monkeypatch):
+    monkeypatch.setattr(
+        market_data_service,
+        "_get_relevant_assets",
+        lambda portfolio_id=None: [{"asset_id": 1, "ticker": "SPY"}],
+    )
+    monkeypatch.setattr(
+        market_data_service,
+        "_download_tickers",
+        lambda tickers, period: pd.DataFrame(
+            {"Close": [None]},
+            index=pd.to_datetime(["2026-07-03"]),
+        ),
+    )
+    monkeypatch.setattr(
+        market_data_service,
+        "_download_ticker_history",
+        lambda ticker, period: pd.DataFrame(
+            {"Close": [None]},
+            index=pd.to_datetime(["2026-07-03"]),
+        ),
+    )
+    monkeypatch.setattr(
+        market_data_service,
+        "_insert_new_price_rows",
+        Mock(side_effect=AssertionError("null rows should not be inserted")),
+    )
+
+    result = market_data_service.refresh_market_data(period="5d")
+
+    assert result["updated_tickers"] == []
+    assert result["rows_inserted"] == 0
+    assert result["failed_tickers"] == [
+        {
+            "ticker": "SPY",
+            "yfinance_ticker": "SPY",
+            "reason": "No price data returned from yfinance",
+            "category": "empty_response",
+            "period": "5d",
+            "interval": "1d",
+            "source": "individual_fallback",
+        }
+    ]

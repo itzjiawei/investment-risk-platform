@@ -176,6 +176,9 @@ flowchart TD
     Batch --> YFinance["Download daily history with yfinance.download"]
 
     YFinance --> Validate["Validate Close prices"]
+    Validate --> EmptyBatch["No usable Close prices for a ticker"]
+    EmptyBatch --> IndividualFallback["Retry ticker with yfinance.Ticker.history"]
+    IndividualFallback --> Validate
     Validate --> Upsert["Update existing price dates and insert new dates"]
     Upsert --> Prices["prices table keyed by asset_id + date"]
     Upsert --> Summary["updated_tickers, failed_tickers, rows_inserted"]
@@ -183,7 +186,7 @@ flowchart TD
     YFinance --> Retry["Retry failed batch with exponential backoff"]
     Retry --> YFinance
     Retry --> Failure["Batch or ticker still failed"]
-    Failure --> FailedList["Append display ticker, yfinance ticker, reason"]
+    Failure --> FailedList["Append display ticker, yfinance ticker, reason, category, source"]
     FailedList --> Summary
 
     Summary --> CacheInvalidate["Invalidate dashboard cache"]

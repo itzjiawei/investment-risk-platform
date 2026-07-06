@@ -187,7 +187,7 @@ GET  /api/market-data/status
 
 The `assets` table keeps the display `ticker` and optional `yfinance_ticker`. Market refresh downloads data with `yfinance_ticker` when present, but stores prices by `asset_id`, so analytics can still join holdings to prices correctly.
 
-The refresh service batches yfinance downloads and deduplicates yfinance symbols within each refresh. This avoids downloading the same ticker more than once when multiple assets map to the same market symbol. Batch downloads retry with exponential backoff when Yahoo Finance or yfinance raises a transient error such as HTTP 429 rate limiting.
+The refresh service batches yfinance downloads and deduplicates yfinance symbols within each refresh. This avoids downloading the same ticker more than once when multiple assets map to the same market symbol. Batch downloads retry with exponential backoff when Yahoo Finance or yfinance raises a transient error such as HTTP 429 rate limiting. If a batched response contains no usable close prices for a ticker, the service retries that ticker through an individual yfinance history request before reporting it as failed.
 
 Retry settings:
 
@@ -197,7 +197,7 @@ YFINANCE_MAX_RETRIES=2
 YFINANCE_RETRY_DELAY_SECONDS=1
 ```
 
-If a batch or ticker still fails, the service logs the failure, keeps processing the remaining downloaded tickers, and returns the failed ticker details in the refresh response. Existing analytics continue to use the latest valid prices already stored in PostgreSQL.
+If a batch or ticker still fails, the service logs the failure, keeps processing the remaining downloaded tickers, and returns diagnostic details in the refresh response. Existing analytics continue to use the latest valid prices already stored in PostgreSQL.
 
 If a ticker fails, the refresh response includes:
 
@@ -205,7 +205,11 @@ If a ticker fails, the refresh response includes:
 {
   "ticker": "DBS",
   "yfinance_ticker": "D05.SI",
-  "reason": "No price data returned"
+  "reason": "No price data returned from yfinance",
+  "category": "empty_response",
+  "period": "5d",
+  "interval": "1d",
+  "source": "individual_fallback"
 }
 ```
 

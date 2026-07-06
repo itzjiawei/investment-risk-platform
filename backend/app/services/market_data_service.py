@@ -59,7 +59,7 @@ def refresh_market_data(
     ]
 
     try:
-        histories_by_ticker, download_failures = _download_ticker_histories(
+        histories_by_ticker, download_failures, history_sources = _download_ticker_histories(
             yfinance_tickers,
             period,
         )
@@ -70,6 +70,8 @@ def refresh_market_data(
                 request["ticker"],
                 "yfinance is not installed or unavailable",
                 request["yfinance_ticker"],
+                category="dependency_unavailable",
+                period=period,
             )
         return _build_refresh_summary(updated_tickers, failed_tickers, rows_inserted)
 
@@ -84,6 +86,8 @@ def refresh_market_data(
                 ticker,
                 download_failures[yfinance_ticker],
                 yfinance_ticker,
+                category="download_failed",
+                period=period,
             )
             continue
 
@@ -97,6 +101,9 @@ def refresh_market_data(
                 ticker,
                 str(exc),
                 yfinance_ticker,
+                category="invalid_response",
+                period=period,
+                source=history_sources.get(yfinance_ticker),
             )
             continue
 
@@ -104,8 +111,11 @@ def refresh_market_data(
             _record_failed_ticker(
                 failed_tickers,
                 ticker,
-                "No price data returned",
+                "No price data returned from yfinance",
                 yfinance_ticker,
+                category="empty_response",
+                period=period,
+                source=history_sources.get(yfinance_ticker),
             )
             continue
 
@@ -117,6 +127,9 @@ def refresh_market_data(
                 ticker,
                 f"Database insert failed: {exc}",
                 yfinance_ticker,
+                category="database_error",
+                period=period,
+                source=history_sources.get(yfinance_ticker),
             )
             continue
 
@@ -259,10 +272,11 @@ def _price_rows_from_history(
 def _download_ticker_histories(
     tickers: list[str],
     period: str,
-) -> tuple[dict[str, Any], dict[str, str]]:
+) -> tuple[dict[str, Any], dict[str, str], dict[str, str]]:
     unique_tickers = list(dict.fromkeys(tickers))
     histories_by_ticker = {}
     download_failures = {}
+    history_sources = {}
 
     for ticker_batch in _chunked(unique_tickers, DEFAULT_BATCH_SIZE):
         try:
@@ -276,12 +290,24 @@ def _download_ticker_histories(
             continue
 
         for ticker in ticker_batch:
-            histories_by_ticker[ticker] = _extract_history_for_ticker(
+            history = _extract_history_for_ticker(
                 downloaded,
                 ticker,
             )
+            source = "batch"
 
-    return histories_by_ticker, download_failures
+            if _is_empty_history(history):
+                try:
+                    history = _download_ticker_history_with_retry(ticker, period)
+                    source = "individual_fallback"
+                except Exception as exc:
+                    download_failures[ticker] = str(exc)
+                    continue
+
+            histories_by_ticker[ticker] = history
+            history_sources[ticker] = source
+
+    return histories_by_ticker, download_failures, history_sources
 
 
 def _download_tickers_with_retry(tickers: list[str], period: str):
@@ -312,6 +338,36 @@ def _download_tickers_with_retry(tickers: list[str], period: str):
         raise last_error
 
     raise RuntimeError("Market data download failed without an exception")
+
+
+def _download_ticker_history_with_retry(ticker: str, period: str):
+    last_error: Exception | None = None
+
+    for attempt in range(DEFAULT_MAX_RETRIES + 1):
+        try:
+            return _download_ticker_history(ticker, period)
+        except Exception as exc:
+            last_error = exc
+
+            if attempt >= DEFAULT_MAX_RETRIES:
+                break
+
+            delay_seconds = DEFAULT_RETRY_DELAY_SECONDS * (2 ** attempt)
+            logger.warning(
+                "Market data individual fallback failed for %s on attempt %s/%s: %s. Retrying in %.2f seconds.",
+                ticker,
+                attempt + 1,
+                DEFAULT_MAX_RETRIES + 1,
+                exc,
+                delay_seconds,
+            )
+            if delay_seconds > 0:
+                _sleep(delay_seconds)
+
+    if last_error is not None:
+        raise last_error
+
+    raise RuntimeError("Market data individual fallback failed without an exception")
 
 
 def _download_tickers(tickers: list[str], period: str):
@@ -360,6 +416,16 @@ def _extract_history_for_ticker(downloaded, ticker: str):
     return downloaded
 
 
+def _is_empty_history(history) -> bool:
+    if history is None or history.empty:
+        return True
+
+    if "Close" not in history.columns:
+        return True
+
+    return history["Close"].dropna().empty
+
+
 def _chunked(items: list[str], chunk_size: int):
     for index in range(0, len(items), chunk_size):
         yield items[index : index + chunk_size]
@@ -388,11 +454,19 @@ def _record_failed_ticker(
     ticker: str,
     reason: str,
     yfinance_ticker: str,
+    category: str,
+    period: str,
+    interval: str = "1d",
+    source: str | None = None,
 ) -> None:
     logger.warning(
-        "Market data refresh failed for %s using yfinance ticker %s: %s",
+        "Market data refresh failed for %s using yfinance ticker %s category=%s period=%s interval=%s source=%s reason=%s",
         ticker,
         yfinance_ticker,
+        category,
+        period,
+        interval,
+        source,
         reason,
     )
     failed_tickers.append(
@@ -400,6 +474,10 @@ def _record_failed_ticker(
             "ticker": ticker,
             "yfinance_ticker": yfinance_ticker,
             "reason": reason,
+            "category": category,
+            "period": period,
+            "interval": interval,
+            "source": source or "unknown",
         }
     )
 

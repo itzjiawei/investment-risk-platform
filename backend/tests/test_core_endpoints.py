@@ -72,7 +72,12 @@ def test_post_market_data_refresh_with_failed_ticker(client, monkeypatch):
         "failed_tickers": [
             {
                 "ticker": "BAD",
-                "reason": "No price data returned",
+                "yfinance_ticker": "BAD.SI",
+                "reason": "No price data returned from yfinance",
+                "category": "empty_response",
+                "period": "5d",
+                "interval": "1d",
+                "source": "individual_fallback",
             }
         ],
         "rows_inserted": 1,
@@ -89,7 +94,7 @@ def test_post_market_data_refresh_with_failed_ticker(client, monkeypatch):
     data = response.json()
     assert data["updated_tickers"] == ["AAPL"]
     assert data["failed_tickers"][0]["ticker"] == "BAD"
-    assert data["failed_tickers"][0]["reason"] == "No price data returned"
+    assert data["failed_tickers"][0]["category"] == "empty_response"
     assert data["rows_inserted"] == 1
 
 
@@ -381,6 +386,68 @@ def test_portfolio_market_refresh_invalidates_dashboard_cache(
     )
     assert mocked_risk.call_count == 2
     mocked_refresh.assert_called_once_with(portfolio_id=1)
+
+
+def test_dashboard_still_loads_after_partial_market_refresh_failure(
+    client,
+    monkeypatch,
+    risk_response,
+    returns_response,
+    holdings_response,
+    sector_exposure_response,
+    risk_contribution_response,
+):
+    mocked_refresh = Mock(
+        return_value={
+            "updated_tickers": ["AAPL"],
+            "failed_tickers": [
+                {
+                    "ticker": "SPY",
+                    "yfinance_ticker": "SPY",
+                    "reason": "No price data returned from yfinance",
+                    "category": "empty_response",
+                    "period": "5d",
+                    "interval": "1d",
+                    "source": "individual_fallback",
+                }
+            ],
+            "rows_inserted": 1,
+            "message": "Market data refresh completed",
+        }
+    )
+
+    monkeypatch.setattr(
+        "app.routers.portfolio.refresh_market_data",
+        mocked_refresh,
+    )
+    monkeypatch.setattr(
+        "app.services.dashboard_cache_service.calculate_portfolio_risk",
+        Mock(return_value=risk_response),
+    )
+    monkeypatch.setattr(
+        "app.services.dashboard_cache_service.calculate_portfolio_returns",
+        Mock(return_value=returns_response),
+    )
+    monkeypatch.setattr(
+        "app.services.dashboard_cache_service.calculate_portfolio_holdings",
+        Mock(return_value=holdings_response),
+    )
+    monkeypatch.setattr(
+        "app.services.dashboard_cache_service.calculate_sector_exposure",
+        Mock(return_value=sector_exposure_response),
+    )
+    monkeypatch.setattr(
+        "app.services.dashboard_cache_service.calculate_risk_contribution",
+        Mock(return_value=risk_contribution_response),
+    )
+
+    refresh_response = client.post("/api/portfolio/1/market-data/refresh")
+    dashboard_response = client.get("/api/portfolio/1/dashboard")
+
+    assert refresh_response.status_code == 200
+    assert refresh_response.json()["failed_tickers"][0]["ticker"] == "SPY"
+    assert dashboard_response.status_code == 200
+    assert dashboard_response.json()["sector_exposure"] == sector_exposure_response
 
 
 def test_get_portfolio_returns(client, monkeypatch, returns_response):

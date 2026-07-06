@@ -97,6 +97,10 @@ type MarketDataRefreshResult = {
     ticker: string;
     yfinance_ticker?: string;
     reason: string;
+    category?: string;
+    period?: string;
+    interval?: string;
+    source?: string;
   }[];
   rows_inserted: number;
   message: string;
@@ -166,6 +170,7 @@ function App() {
   const [marketDataLoading, setMarketDataLoading] = useState(false);
   const [marketDataMessage, setMarketDataMessage] = useState("");
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardMessage, setDashboardMessage] = useState("");
   const dashboardRequestIdRef = useRef(0);
   const canRefreshMarketData =
     authUser?.role === "admin" || authUser?.role === "portfolio_manager";
@@ -218,6 +223,7 @@ function App() {
     const requestId = dashboardRequestIdRef.current + 1;
     dashboardRequestIdRef.current = requestId;
     setDashboardLoading(true);
+    setDashboardMessage("");
 
     axios
       .get<DashboardData>(`${API_BASE_URL}/api/portfolio/${portfolioId}/dashboard`)
@@ -234,6 +240,13 @@ function App() {
         setHoldings(res.data.holdings);
         setSectorExposure(res.data.sector_exposure);
         setRiskContribution(res.data.risk_contribution);
+      })
+      .catch(() => {
+        if (requestId !== dashboardRequestIdRef.current) return;
+
+        setDashboardMessage(
+          "Unable to load portfolio dashboard. Existing data is still shown if available."
+        );
       })
       .finally(() => {
         if (requestId === dashboardRequestIdRef.current) {
@@ -269,6 +282,7 @@ function App() {
     setRiskContribution([]);
     setStressResult(null);
     setMarketDataMessage("");
+    setDashboardMessage("");
   }
 
   function runStressTest() {
@@ -304,8 +318,15 @@ function App() {
               failedTicker.yfinance_ticker !== failedTicker.ticker
                 ? ` (${failedTicker.yfinance_ticker})`
                 : "";
+            const diagnosticParts = [
+              failedTicker.category,
+              failedTicker.source,
+            ].filter(Boolean);
+            const diagnosticLabel = diagnosticParts.length
+              ? ` [${diagnosticParts.join(", ")}]`
+              : "";
 
-            return `${failedTicker.ticker}${yfinanceLabel}: ${failedTicker.reason}`;
+            return `${failedTicker.ticker}${yfinanceLabel}: ${failedTicker.reason}${diagnosticLabel}`;
           })
           .join("; ");
         const failedMessage = failedTickers
@@ -491,6 +512,7 @@ function App() {
             marketDataLoading={marketDataLoading}
             marketDataMessage={marketDataMessage}
             dashboardLoading={dashboardLoading}
+            dashboardMessage={dashboardMessage}
           />
         )}
       </div>

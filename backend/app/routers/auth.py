@@ -1,3 +1,6 @@
+import logging
+from time import monotonic
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.database.repository import list_users
@@ -12,13 +15,21 @@ from app.services.auth_service import (
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/login", response_model=TokenResponse)
 def login(login_request: LoginRequest, request: Request):
+    started_at = monotonic()
     user = authenticate_user(login_request.email, login_request.password)
+    auth_duration = monotonic() - started_at
 
     if user is None:
+        logger.info(
+            "Login failed for email=%s duration_seconds=%.3f",
+            login_request.email,
+            auth_duration,
+        )
         create_audit_log(
             action="login",
             status="failed",
@@ -32,6 +43,12 @@ def login(login_request: LoginRequest, request: Request):
             detail="Invalid email or password",
         )
 
+    logger.info(
+        "Login succeeded for email=%s role=%s duration_seconds=%.3f",
+        user["email"],
+        user["role"],
+        auth_duration,
+    )
     create_audit_log(
         action="login",
         status="success",
