@@ -171,14 +171,18 @@ flowchart TD
 
     Service --> Assets["Load held assets from assets + holdings"]
     Assets --> TickerMap["Resolve yfinance_ticker or fallback ticker mapping"]
-    TickerMap --> YFinance["Download daily history with yfinance"]
+    TickerMap --> Dedupe["Deduplicate yfinance symbols"]
+    Dedupe --> Batch["Batch downloads by YFINANCE_BATCH_SIZE"]
+    Batch --> YFinance["Download daily history with yfinance.download"]
 
     YFinance --> Validate["Validate Close prices"]
     Validate --> Upsert["Update existing price dates and insert new dates"]
     Upsert --> Prices["prices table keyed by asset_id + date"]
     Upsert --> Summary["updated_tickers, failed_tickers, rows_inserted"]
 
-    YFinance --> Failure["Ticker import/download/empty-data failure"]
+    YFinance --> Retry["Retry failed batch with exponential backoff"]
+    Retry --> YFinance
+    Retry --> Failure["Batch or ticker still failed"]
     Failure --> FailedList["Append display ticker, yfinance ticker, reason"]
     FailedList --> Summary
 
@@ -251,7 +255,7 @@ flowchart LR
     Render --> Neon["Neon Postgres\nDATABASE_URL"]
 
     Render --> Yahoo["Yahoo Finance via yfinance"]
-    Render -. "Optional local service / usually unavailable on Render free tier" .-> Ollama["Ollama"]
+    Render -. "Local AI service, not part of Render deployment" .-> Ollama["Ollama"]
 
     GitHub["GitHub Repository"] --> Actions["GitHub Actions CI"]
     Actions --> BackendTests["Backend pytest"]

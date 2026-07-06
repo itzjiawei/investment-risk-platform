@@ -13,11 +13,11 @@ The application is split into a React frontend, a FastAPI backend, and a Postgre
 - Portfolio dashboard with consolidated risk, returns, holdings, sector exposure, and risk contribution data.
 - Dashboard analytics cache with short TTL and invalidation after market price updates.
 - yfinance market data refresh for global and portfolio-specific tickers.
-- Friendly display tickers with optional yfinance-compatible ticker mappings.
+- Display tickers with optional yfinance-compatible ticker mappings.
 - Sector exposure and holdings calculations that avoid NaN/Infinity JSON responses.
 - Custom stress testing by sector.
 - Portfolio comparison and AI-assisted comparison.
-- AI Copilot backed by local Ollama, with graceful fallback when Ollama is unavailable.
+- AI Copilot backed by local Ollama, with fallback responses when Ollama is unavailable.
 - Downloadable PDF risk reports generated with ReportLab.
 - JWT login with password hashing.
 - Role-Based Access Control for admin, portfolio manager, analyst, and viewer roles.
@@ -79,7 +79,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for diagrams and [docs/ENGINEER
 
 ## Authentication
 
-The app uses a simple JWT login flow:
+The app uses a JWT login flow:
 
 1. Frontend sends credentials to `POST /api/auth/login`.
 2. Backend verifies the password using passlib/bcrypt.
@@ -107,7 +107,7 @@ Demo users:
 | `viewer@example.com` | `viewer123` | `viewer` |
 | `demo@example.com` | `demo123` | `admin` |
 
-Set a strong `JWT_SECRET_KEY` in production. Do not commit real secrets.
+Set `JWT_SECRET_KEY` in production through the deployment environment.
 
 ## RBAC
 
@@ -128,6 +128,8 @@ Audit logs are stored in the `audit_logs` table. Logged actions include:
 - Market data refreshes.
 - PDF report exports.
 - AI summary, AI chat, and AI comparison requests.
+- Portfolio comparison requests.
+- Stress test requests.
 - Forbidden RBAC access attempts.
 - Admin user-list viewing.
 - Background job refresh activity.
@@ -159,7 +161,7 @@ GET  /api/jobs/status
 POST /api/jobs/market-refresh/run-now
 ```
 
-Render free-tier services can sleep, so the in-process scheduler is best-effort in hosted deployment. For guaranteed production scheduling, use Render Cron Jobs or another external scheduler.
+Render free-tier services can sleep, so the in-process scheduler runs only while the service is awake.
 
 ## Dashboard Cache
 
@@ -183,7 +185,19 @@ POST /api/portfolio/{portfolio_id}/market-data/refresh
 GET  /api/market-data/status
 ```
 
-The `assets` table keeps the friendly display `ticker` and optional `yfinance_ticker`. Market refresh downloads data with `yfinance_ticker` when present, but stores prices by `asset_id`, so analytics can still join holdings to prices correctly.
+The `assets` table keeps the display `ticker` and optional `yfinance_ticker`. Market refresh downloads data with `yfinance_ticker` when present, but stores prices by `asset_id`, so analytics can still join holdings to prices correctly.
+
+The refresh service batches yfinance downloads and deduplicates yfinance symbols within each refresh. This avoids downloading the same ticker more than once when multiple assets map to the same market symbol. Batch downloads retry with exponential backoff when Yahoo Finance or yfinance raises a transient error such as HTTP 429 rate limiting.
+
+Retry settings:
+
+```text
+YFINANCE_BATCH_SIZE=20
+YFINANCE_MAX_RETRIES=2
+YFINANCE_RETRY_DELAY_SECONDS=1
+```
+
+If a batch or ticker still fails, the service logs the failure, keeps processing the remaining downloaded tickers, and returns the failed ticker details in the refresh response. Existing analytics continue to use the latest valid prices already stored in PostgreSQL.
 
 If a ticker fails, the refresh response includes:
 
@@ -274,7 +288,7 @@ Workflow file:
 
 ## Deployment
 
-Recommended deployment:
+Deployment targets:
 
 - Frontend: Vercel
 - Backend: Render Web Service
@@ -310,6 +324,9 @@ JWT_EXPIRE_MINUTES=480
 OLLAMA_URL=http://localhost:11434/api/generate
 OLLAMA_MODEL=llama3.2:3b
 YFINANCE_REFRESH_PERIOD=1mo
+YFINANCE_BATCH_SIZE=20
+YFINANCE_MAX_RETRIES=2
+YFINANCE_RETRY_DELAY_SECONDS=1
 MARKET_REFRESH_ENABLED=true
 MARKET_REFRESH_DAYS=mon,tue,wed,thu,fri
 MARKET_REFRESH_HOUR_UTC=22
@@ -447,28 +464,3 @@ GET  /api/portfolio/{portfolio_id}/engine-comparison
 GET  /api/performance/benchmark
 POST /api/notifications/send-report
 ```
-
-## Screenshots
-
-No screenshots are committed yet. Useful screenshots to add later:
-
-- Dashboard with risk metrics and sector exposure.
-- Analytics stress test view.
-- AI Copilot page.
-- Audit Logs admin page.
-- Background Jobs admin page.
-
-## Maintenance Notes
-
-- Add a dedicated test database or ephemeral database container for integration tests.
-- Add route-level code splitting to reduce frontend bundle size.
-- Move frontend API calls into a typed service layer.
-- Add SQLAlchemy ORM-based repositories or query objects for more complex persistence.
-- Add external guaranteed scheduling for production market refreshes.
-- Add a notification provider such as email, Slack, or Teams if the deployment requires outbound notifications.
-- Add a formal `LICENSE` file before public distribution.
-- Add screenshots and architecture images after UI is finalized.
-
-## License
-
-No license file is currently included. Add a license before publishing or distributing this project publicly.

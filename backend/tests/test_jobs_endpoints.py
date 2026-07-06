@@ -122,6 +122,7 @@ def test_scheduled_job_calls_market_refresh_and_invalidates_cache(monkeypatch):
     }
     mocked_refresh = Mock(return_value=expected_summary)
     mocked_invalidate_cache = Mock()
+    mocked_audit = Mock()
 
     monkeypatch.setattr(
         market_refresh_job_service,
@@ -136,7 +137,7 @@ def test_scheduled_job_calls_market_refresh_and_invalidates_cache(monkeypatch):
     monkeypatch.setattr(
         market_refresh_job_service,
         "create_audit_log",
-        Mock(),
+        mocked_audit,
     )
     monkeypatch.setattr(
         market_refresh_job_service,
@@ -153,6 +154,10 @@ def test_scheduled_job_calls_market_refresh_and_invalidates_cache(monkeypatch):
     }
     mocked_refresh.assert_called_once_with()
     mocked_invalidate_cache.assert_called_once_with()
+    mocked_audit.assert_called_once()
+    assert mocked_audit.call_args.kwargs["action"] == "scheduled_market_data_refresh"
+    assert mocked_audit.call_args.kwargs["status"] == "success"
+    assert mocked_audit.call_args.kwargs["resource_id"] == "global"
 
 
 def test_failed_ticker_does_not_crash_scheduled_job(monkeypatch):

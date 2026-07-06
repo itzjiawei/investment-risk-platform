@@ -489,10 +489,12 @@ def test_get_risk_report_pdf(client, monkeypatch):
 
 def test_post_stress_test(client, monkeypatch, stress_test_response):
     mocked_service = Mock(return_value=stress_test_response)
+    mocked_audit = Mock()
     monkeypatch.setattr(
         "app.routers.portfolio.run_custom_stress_test",
         mocked_service,
     )
+    monkeypatch.setattr("app.routers.portfolio.create_audit_log", mocked_audit)
 
     payload = {
         "shocks": {
@@ -524,14 +526,20 @@ def test_post_stress_test(client, monkeypatch, stress_test_response):
         "stressed_value",
     } <= data["breakdown"][0].keys()
     mocked_service.assert_called_once_with(1, payload["shocks"])
+    mocked_audit.assert_called_once()
+    assert mocked_audit.call_args.kwargs["action"] == "stress_test"
+    assert mocked_audit.call_args.kwargs["resource_id"] == 1
+    assert mocked_audit.call_args.kwargs["metadata"]["shocks"] == payload["shocks"]
 
 
 def test_post_portfolio_compare(client, monkeypatch, comparison_response):
     mocked_service = Mock(return_value=comparison_response)
+    mocked_audit = Mock()
     monkeypatch.setattr(
         "app.routers.portfolio.compare_portfolios",
         mocked_service,
     )
+    monkeypatch.setattr("app.routers.portfolio.create_audit_log", mocked_audit)
 
     payload = {"portfolio_ids": [1, 2]}
     response = client.post("/api/portfolio/compare", json=payload)
@@ -550,3 +558,10 @@ def test_post_portfolio_compare(client, monkeypatch, comparison_response):
         "historical_var_95",
     } <= data[0].keys()
     mocked_service.assert_called_once_with(payload["portfolio_ids"])
+    mocked_audit.assert_called_once()
+    assert mocked_audit.call_args.kwargs["action"] == "portfolio_comparison"
+    assert mocked_audit.call_args.kwargs["resource_type"] == "portfolio_comparison"
+    assert mocked_audit.call_args.kwargs["resource_id"] == "1,2"
+    assert mocked_audit.call_args.kwargs["metadata"] == {
+        "portfolio_ids": payload["portfolio_ids"],
+    }

@@ -19,22 +19,22 @@ investment-risk-platform/
 ## Backend Folders
 
 - `backend/app/main.py`: FastAPI application factory, CORS configuration, router registration, and scheduler lifecycle.
-- `backend/app/routers/`: HTTP route definitions. Routers should stay thin and delegate calculations or persistence to services.
+- `backend/app/routers/`: HTTP route definitions. Routers delegate calculations and persistence to services.
 - `backend/app/services/`: Business logic for analytics, AI, market refresh, PDF generation, notifications, audit logging, auth, caching, and scheduled jobs.
 - `backend/app/schemas/`: Pydantic request and response models for API validation.
 - `backend/app/database/`: SQLAlchemy engine configuration, ORM models, and repository functions.
 - `backend/alembic/`: Alembic migration environment and versioned schema migrations.
 - `backend/tests/`: Pytest regression tests using FastAPI `TestClient`.
 
-Compatibility modules such as `backend/app/analytics.py`, `backend/app/ai_chat.py`, `backend/app/ai_service.py`, and `backend/app/data_loader.py` re-export service functions for older imports. New code should import from `app.services` or `app.database` directly.
+Compatibility modules such as `backend/app/analytics.py`, `backend/app/ai_chat.py`, `backend/app/ai_service.py`, and `backend/app/data_loader.py` re-export service functions for older imports. Current modules import from `app.services` or `app.database` directly.
 
 ## Backend Services
 
 - `portfolio_service.py`: Portfolio value, returns, risk metrics, holdings, sector exposure, risk contribution, stress testing, and portfolio comparison.
-- `market_data_service.py`: yfinance refresh logic, ticker mapping, price upsert behavior, failed ticker reporting, and market data status.
+- `market_data_service.py`: yfinance refresh logic, ticker mapping, batched downloads, retry/backoff behavior, price upserts, failed ticker reporting, and market data status.
 - `dashboard_cache_service.py`: Short-lived in-memory cache for consolidated dashboard analytics.
 - `ai_analysis_service.py`: AI summary, AI Q&A, and AI comparison orchestration.
-- `ollama_service.py`: Local Ollama HTTP integration and graceful fallback handling.
+- `ollama_service.py`: Local Ollama HTTP integration and fallback handling.
 - `pdf_report_service.py`: ReportLab PDF risk report generation.
 - `performance_service.py`: Pandas, PostgreSQL, and DuckDB benchmark helpers.
 - `auth_service.py`: Password hashing, JWT creation/verification, seeded demo users, and RBAC dependencies.
@@ -50,7 +50,7 @@ Compatibility modules such as `backend/app/analytics.py`, `backend/app/ai_chat.p
 - `frontend/src/App.css` and `frontend/src/index.css`: Application styling.
 - `frontend/public/`: Static browser assets such as favicon and icon sprite.
 
-The frontend currently uses page-level components rather than a shared component library. If the UI grows, reusable controls can move into `frontend/src/components/`, API wrappers into `frontend/src/services/`, and auth helpers into `frontend/src/contexts/`.
+The frontend currently uses page-level components rather than a shared component library.
 
 ## Database Tables
 
@@ -65,7 +65,7 @@ The frontend currently uses page-level components rather than a shared component
 
 The in-process APScheduler job starts with the FastAPI lifespan hook when `MARKET_REFRESH_ENABLED=true`. It refreshes all held tickers using the same market data service as manual refresh, invalidates dashboard cache, writes audit logs, records last-run status, and triggers console notification flow for configured report recipients.
 
-Render free-tier services may sleep, so this scheduler is best-effort in hosted deployments on that tier. Deployments that require guaranteed execution should use Render Cron Jobs or another external scheduler.
+Render free-tier services may sleep, so this scheduler runs only while the hosted service is awake.
 
 ## Middleware
 
@@ -82,11 +82,3 @@ The backend currently uses FastAPI's CORS middleware. Allowed origins come from 
 - `backend/alembic.ini`: Alembic configuration.
 - `frontend/package.json`: Frontend scripts and dependencies.
 - `backend/requirements.txt`: Backend Python dependencies.
-
-## Development Rules
-
-- Keep API response shapes stable unless a deliberate versioned change is made.
-- Keep routers thin and put business logic in services.
-- Use Alembic for schema changes, then seed data with `seed_database.py`.
-- Do not run tests against Neon production unless intentional; tests mock audit logging by default to avoid writing operational audit rows.
-- Do not commit `.env` files, generated reports, caches, build output, or real credentials.

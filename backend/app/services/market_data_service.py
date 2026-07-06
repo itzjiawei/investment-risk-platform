@@ -1,17 +1,27 @@
 from datetime import date
 import logging
+from time import sleep
 from typing import Any
 
 import pandas as pd
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
 
-from app.config import YFINANCE_REFRESH_PERIOD
+from app.config import (
+    YFINANCE_BATCH_SIZE,
+    YFINANCE_MAX_RETRIES,
+    YFINANCE_REFRESH_PERIOD,
+    YFINANCE_RETRY_DELAY_SECONDS,
+)
 from app.database.config import engine
 
 
 DEFAULT_REFRESH_PERIOD = YFINANCE_REFRESH_PERIOD
+DEFAULT_BATCH_SIZE = max(1, YFINANCE_BATCH_SIZE)
+DEFAULT_MAX_RETRIES = max(0, YFINANCE_MAX_RETRIES)
+DEFAULT_RETRY_DELAY_SECONDS = max(0.0, YFINANCE_RETRY_DELAY_SECONDS)
 logger = logging.getLogger(__name__)
+_sleep = sleep
 
 KNOWN_YFINANCE_TICKER_MAP = {
     "DBS": "D05.SI",
@@ -35,21 +45,52 @@ def refresh_market_data(
     failed_tickers: list[dict[str, str]] = []
     rows_inserted = 0
 
-    for asset in assets:
-        asset_id = int(asset["asset_id"])
-        ticker = str(asset["ticker"])
-        yfinance_ticker = _get_yfinance_ticker(asset)
+    asset_requests = [
+        {
+            "asset_id": int(asset["asset_id"]),
+            "ticker": str(asset["ticker"]),
+            "yfinance_ticker": _get_yfinance_ticker(asset),
+        }
+        for asset in assets
+    ]
+    yfinance_tickers = [
+        request["yfinance_ticker"]
+        for request in asset_requests
+    ]
 
-        try:
-            price_rows = _fetch_price_rows(asset_id, yfinance_ticker, period)
-        except ImportError:
+    try:
+        histories_by_ticker, download_failures = _download_ticker_histories(
+            yfinance_tickers,
+            period,
+        )
+    except ImportError:
+        for request in asset_requests:
+            _record_failed_ticker(
+                failed_tickers,
+                request["ticker"],
+                "yfinance is not installed or unavailable",
+                request["yfinance_ticker"],
+            )
+        return _build_refresh_summary(updated_tickers, failed_tickers, rows_inserted)
+
+    for request in asset_requests:
+        asset_id = request["asset_id"]
+        ticker = request["ticker"]
+        yfinance_ticker = request["yfinance_ticker"]
+
+        if yfinance_ticker in download_failures:
             _record_failed_ticker(
                 failed_tickers,
                 ticker,
-                "yfinance is not installed or unavailable",
+                download_failures[yfinance_ticker],
                 yfinance_ticker,
             )
             continue
+
+        history = histories_by_ticker.get(yfinance_ticker)
+
+        try:
+            price_rows = _price_rows_from_history(asset_id, history)
         except Exception as exc:
             _record_failed_ticker(
                 failed_tickers,
@@ -83,6 +124,14 @@ def refresh_market_data(
             updated_tickers.append(ticker)
             rows_inserted += inserted_count
 
+    return _build_refresh_summary(updated_tickers, failed_tickers, rows_inserted)
+
+
+def _build_refresh_summary(
+    updated_tickers: list[str],
+    failed_tickers: list[dict[str, str]],
+    rows_inserted: int,
+) -> dict[str, Any]:
     return {
         "updated_tickers": updated_tickers,
         "failed_tickers": failed_tickers,
@@ -173,7 +222,13 @@ def _fetch_price_rows(
     period: str,
 ) -> list[dict[str, Any]]:
     history = _download_ticker_history(ticker, period)
+    return _price_rows_from_history(asset_id, history)
 
+
+def _price_rows_from_history(
+    asset_id: int,
+    history,
+) -> list[dict[str, Any]]:
     if history is None or history.empty:
         return []
 
@@ -201,6 +256,77 @@ def _fetch_price_rows(
     return rows
 
 
+def _download_ticker_histories(
+    tickers: list[str],
+    period: str,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    unique_tickers = list(dict.fromkeys(tickers))
+    histories_by_ticker = {}
+    download_failures = {}
+
+    for ticker_batch in _chunked(unique_tickers, DEFAULT_BATCH_SIZE):
+        try:
+            downloaded = _download_tickers_with_retry(ticker_batch, period)
+        except ImportError:
+            raise
+        except Exception as exc:
+            reason = str(exc)
+            for ticker in ticker_batch:
+                download_failures[ticker] = reason
+            continue
+
+        for ticker in ticker_batch:
+            histories_by_ticker[ticker] = _extract_history_for_ticker(
+                downloaded,
+                ticker,
+            )
+
+    return histories_by_ticker, download_failures
+
+
+def _download_tickers_with_retry(tickers: list[str], period: str):
+    last_error: Exception | None = None
+
+    for attempt in range(DEFAULT_MAX_RETRIES + 1):
+        try:
+            return _download_tickers(tickers, period)
+        except Exception as exc:
+            last_error = exc
+
+            if attempt >= DEFAULT_MAX_RETRIES:
+                break
+
+            delay_seconds = DEFAULT_RETRY_DELAY_SECONDS * (2 ** attempt)
+            logger.warning(
+                "Market data batch download failed for %s on attempt %s/%s: %s. Retrying in %.2f seconds.",
+                tickers,
+                attempt + 1,
+                DEFAULT_MAX_RETRIES + 1,
+                exc,
+                delay_seconds,
+            )
+            if delay_seconds > 0:
+                _sleep(delay_seconds)
+
+    if last_error is not None:
+        raise last_error
+
+    raise RuntimeError("Market data download failed without an exception")
+
+
+def _download_tickers(tickers: list[str], period: str):
+    yfinance = _get_yfinance_module()
+    return yfinance.download(
+        tickers=" ".join(tickers),
+        period=period,
+        interval="1d",
+        auto_adjust=False,
+        group_by="ticker",
+        threads=False,
+        progress=False,
+    )
+
+
 def _download_ticker_history(ticker: str, period: str):
     yfinance = _get_yfinance_module()
     return yfinance.Ticker(ticker).history(
@@ -214,6 +340,29 @@ def _get_yfinance_module():
     import yfinance
 
     return yfinance
+
+
+def _extract_history_for_ticker(downloaded, ticker: str):
+    if downloaded is None or downloaded.empty:
+        return pd.DataFrame()
+
+    if isinstance(downloaded.columns, pd.MultiIndex):
+        first_level = downloaded.columns.get_level_values(0)
+        if ticker in first_level:
+            return downloaded[ticker]
+
+        second_level = downloaded.columns.get_level_values(1)
+        if ticker in second_level:
+            return downloaded.xs(ticker, axis=1, level=1)
+
+        return pd.DataFrame()
+
+    return downloaded
+
+
+def _chunked(items: list[str], chunk_size: int):
+    for index in range(0, len(items), chunk_size):
+        yield items[index : index + chunk_size]
 
 
 def _get_yfinance_ticker(asset: dict[str, Any]) -> str:

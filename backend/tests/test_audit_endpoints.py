@@ -97,6 +97,54 @@ def test_audit_log_created_on_market_refresh(unauthenticated_client, monkeypatch
     assert mocked_audit.call_args.kwargs["metadata"]["rows_inserted"] == 1
 
 
+def test_audit_log_created_on_ai_question(unauthenticated_client, monkeypatch):
+    mocked_audit = Mock()
+    monkeypatch.setattr(
+        "app.routers.ai.answer_ai_risk_question",
+        Mock(
+            return_value={
+                "portfolio_id": 1,
+                "question": "What changed?",
+                "answer": "Mock AI response",
+            }
+        ),
+    )
+    monkeypatch.setattr("app.routers.ai.create_audit_log", mocked_audit)
+
+    response = unauthenticated_client.post(
+        "/api/portfolio/1/ask-ai",
+        json={"question": "What changed?", "chat_history": []},
+        headers=_auth_headers_for_role("analyst", monkeypatch),
+    )
+
+    assert response.status_code == 200
+    mocked_audit.assert_called_once()
+    assert mocked_audit.call_args.kwargs["action"] == "ai_question"
+    assert mocked_audit.call_args.kwargs["resource_id"] == 1
+    assert mocked_audit.call_args.kwargs["metadata"] == {
+        "question_length": len("What changed?"),
+        "chat_history_count": 0,
+    }
+
+
+def test_failed_authorization_creates_audit_log(
+    unauthenticated_client,
+    monkeypatch,
+):
+    mocked_audit = Mock()
+    monkeypatch.setattr("app.services.auth_service.create_audit_log", mocked_audit)
+
+    response = unauthenticated_client.post(
+        "/api/portfolio/1/ai-risk-summary",
+        headers=_auth_headers_for_role("viewer", monkeypatch),
+    )
+
+    assert response.status_code == 403
+    mocked_audit.assert_called_once()
+    assert mocked_audit.call_args.kwargs["action"] == "unauthorized_access"
+    assert mocked_audit.call_args.kwargs["status"] == "forbidden"
+
+
 def test_non_admin_cannot_view_audit_logs(unauthenticated_client, monkeypatch):
     monkeypatch.setattr("app.services.auth_service.create_audit_log", Mock())
 
@@ -126,9 +174,7 @@ def test_admin_can_view_audit_logs(unauthenticated_client, monkeypatch):
         }
     ]
     mocked_get_logs = Mock(return_value=expected_logs)
-    mocked_audit = Mock()
     monkeypatch.setattr("app.routers.audit.get_audit_logs", mocked_get_logs)
-    monkeypatch.setattr("app.routers.audit.create_audit_log", mocked_audit)
 
     response = unauthenticated_client.get(
         "/api/audit-logs?limit=50&action=login",
@@ -144,17 +190,29 @@ def test_admin_can_view_audit_logs(unauthenticated_client, monkeypatch):
         status=None,
         limit=50,
     )
-    mocked_audit.assert_called_once()
-    assert mocked_audit.call_args.kwargs["action"] == "view_audit_logs"
-    assert mocked_audit.call_args.kwargs["status"] == "success"
-    assert mocked_audit.call_args.kwargs["user"]["role"] == "admin"
-    assert mocked_audit.call_args.kwargs["metadata"]["filters"] == {
-        "action": "login",
-        "user_email": None,
-        "resource_type": None,
-        "status": None,
-        "limit": 50,
-    }
+
+
+def test_fetching_audit_logs_does_not_create_audit_log(
+    unauthenticated_client,
+    monkeypatch,
+):
+    mocked_get_logs = Mock(return_value=[])
+    monkeypatch.setattr("app.routers.audit.get_audit_logs", mocked_get_logs)
+
+    response = unauthenticated_client.get(
+        "/api/audit-logs",
+        headers=_auth_headers_for_role("admin", monkeypatch),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == []
+    mocked_get_logs.assert_called_once_with(
+        action=None,
+        user_email=None,
+        resource_type=None,
+        status=None,
+        limit=100,
+    )
 
 
 def test_audit_log_timestamp_is_returned_as_utc_when_database_value_is_naive():

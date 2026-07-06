@@ -133,11 +133,26 @@ def download_risk_report_pdf(
 
 
 @router.post("/portfolio/{portfolio_id}/stress-test")
-def stress_test_portfolio(portfolio_id: int, request: StressTestRequest):
-    return run_custom_stress_test(
+def stress_test_portfolio(
+    portfolio_id: int,
+    stress_request: StressTestRequest,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    result = run_custom_stress_test(
         portfolio_id,
-        request.shocks,
+        stress_request.shocks,
     )
+    create_audit_log(
+        action="stress_test",
+        status="success",
+        user=current_user,
+        request=request,
+        resource_type="portfolio",
+        resource_id=portfolio_id,
+        metadata={"shocks": stress_request.shocks},
+    )
+    return result
 
 
 @router.get("/portfolio/{portfolio_id}/value-fast")
@@ -151,5 +166,22 @@ def get_engine_comparison(portfolio_id: int):
 
 
 @router.post("/portfolio/compare")
-def compare_portfolio_metrics(request: PortfolioComparisonRequest):
-    return compare_portfolios(request.portfolio_ids)
+def compare_portfolio_metrics(
+    comparison_request: PortfolioComparisonRequest,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    result = compare_portfolios(comparison_request.portfolio_ids)
+    create_audit_log(
+        action="portfolio_comparison",
+        status="success",
+        user=current_user,
+        request=request,
+        resource_type="portfolio_comparison",
+        resource_id=",".join(
+            str(portfolio_id)
+            for portfolio_id in comparison_request.portfolio_ids
+        ),
+        metadata={"portfolio_ids": comparison_request.portfolio_ids},
+    )
+    return result

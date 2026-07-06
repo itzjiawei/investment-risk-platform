@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pandas as pd
 
@@ -22,6 +23,42 @@ class FakeTicker:
             },
             index=pd.to_datetime(["2026-07-02", "2026-07-03"]),
         )
+
+
+def _fake_download_frame(tickers: list[str]):
+    index = pd.to_datetime(["2026-07-02", "2026-07-03"])
+
+    if len(tickers) == 1:
+        ticker = tickers[0]
+        close_values = [None, None] if ticker in {"BAD", "BAD.SI"} else [101.234, 102.345]
+        return pd.DataFrame({"Close": close_values}, index=index)
+
+    data = {}
+    for ticker in tickers:
+        close_values = [None, None] if ticker in {"BAD", "BAD.SI"} else [101.234, 102.345]
+        data[(ticker, "Close")] = close_values
+
+    return pd.DataFrame(
+        data,
+        index=index,
+        columns=pd.MultiIndex.from_tuples(data.keys()),
+    )
+
+
+class FakeYFinance:
+    requested_downloads = []
+    Ticker = FakeTicker
+
+    @classmethod
+    def download(cls, tickers: str, **kwargs):
+        requested_tickers = tickers.split()
+        cls.requested_downloads.append(
+            {
+                "tickers": requested_tickers,
+                "kwargs": kwargs,
+            }
+        )
+        return _fake_download_frame(requested_tickers)
 
 
 def test_fetch_price_rows_uses_mocked_yfinance(monkeypatch):
@@ -55,7 +92,7 @@ def test_fetch_price_rows_uses_mocked_yfinance(monkeypatch):
 
 
 def test_refresh_market_data_uses_yfinance_ticker_mapping(monkeypatch):
-    FakeTicker.requested_tickers = []
+    FakeYFinance.requested_downloads = []
     monkeypatch.setattr(
         market_data_service,
         "_get_relevant_assets",
@@ -68,11 +105,10 @@ def test_refresh_market_data_uses_yfinance_ticker_mapping(monkeypatch):
         ],
     )
 
-    fake_yfinance = SimpleNamespace(Ticker=FakeTicker)
     monkeypatch.setattr(
         market_data_service,
         "_get_yfinance_module",
-        lambda: fake_yfinance,
+        lambda: FakeYFinance,
     )
     monkeypatch.setattr(
         market_data_service,
@@ -82,14 +118,14 @@ def test_refresh_market_data_uses_yfinance_ticker_mapping(monkeypatch):
 
     result = market_data_service.refresh_market_data(period="5d")
 
-    assert FakeTicker.requested_tickers == ["D05.SI"]
+    assert FakeYFinance.requested_downloads[0]["tickers"] == ["D05.SI"]
     assert result["updated_tickers"] == ["DBS"]
     assert result["failed_tickers"] == []
     assert result["rows_inserted"] == 2
 
 
 def test_refresh_market_data_uses_known_mapping_when_column_missing(monkeypatch):
-    FakeTicker.requested_tickers = []
+    FakeYFinance.requested_downloads = []
     monkeypatch.setattr(
         market_data_service,
         "_get_relevant_assets",
@@ -101,11 +137,10 @@ def test_refresh_market_data_uses_known_mapping_when_column_missing(monkeypatch)
         ],
     )
 
-    fake_yfinance = SimpleNamespace(Ticker=FakeTicker)
     monkeypatch.setattr(
         market_data_service,
         "_get_yfinance_module",
-        lambda: fake_yfinance,
+        lambda: FakeYFinance,
     )
     monkeypatch.setattr(
         market_data_service,
@@ -115,13 +150,13 @@ def test_refresh_market_data_uses_known_mapping_when_column_missing(monkeypatch)
 
     result = market_data_service.refresh_market_data(period="5d")
 
-    assert FakeTicker.requested_tickers == ["D05.SI"]
+    assert FakeYFinance.requested_downloads[0]["tickers"] == ["D05.SI"]
     assert result["updated_tickers"] == ["DBS"]
     assert result["failed_tickers"] == []
 
 
 def test_refresh_market_data_handles_failed_ticker(monkeypatch):
-    FakeTicker.requested_tickers = []
+    FakeYFinance.requested_downloads = []
     monkeypatch.setattr(
         market_data_service,
         "_get_relevant_assets",
@@ -135,11 +170,10 @@ def test_refresh_market_data_handles_failed_ticker(monkeypatch):
         ],
     )
 
-    fake_yfinance = SimpleNamespace(Ticker=FakeTicker)
     monkeypatch.setattr(
         market_data_service,
         "_get_yfinance_module",
-        lambda: fake_yfinance,
+        lambda: FakeYFinance,
     )
     monkeypatch.setattr(
         market_data_service,
@@ -149,7 +183,7 @@ def test_refresh_market_data_handles_failed_ticker(monkeypatch):
 
     result = market_data_service.refresh_market_data(period="5d")
 
-    assert FakeTicker.requested_tickers == ["AAPL", "BAD.SI"]
+    assert FakeYFinance.requested_downloads[0]["tickers"] == ["AAPL", "BAD.SI"]
     assert result == {
         "updated_tickers": ["AAPL"],
         "failed_tickers": [
@@ -165,7 +199,7 @@ def test_refresh_market_data_handles_failed_ticker(monkeypatch):
 
 
 def test_refresh_market_data_filters_by_portfolio(monkeypatch):
-    FakeTicker.requested_tickers = []
+    FakeYFinance.requested_downloads = []
     requested_portfolio_ids = []
 
     def fake_get_relevant_assets(portfolio_id=None):
@@ -178,11 +212,10 @@ def test_refresh_market_data_filters_by_portfolio(monkeypatch):
         fake_get_relevant_assets,
     )
 
-    fake_yfinance = SimpleNamespace(Ticker=FakeTicker)
     monkeypatch.setattr(
         market_data_service,
         "_get_yfinance_module",
-        lambda: fake_yfinance,
+        lambda: FakeYFinance,
     )
     monkeypatch.setattr(
         market_data_service,
@@ -198,3 +231,68 @@ def test_refresh_market_data_filters_by_portfolio(monkeypatch):
     assert requested_portfolio_ids == [7]
     assert result["updated_tickers"] == ["AAPL"]
     assert result["rows_inserted"] == 2
+
+
+def test_refresh_market_data_deduplicates_yfinance_downloads(monkeypatch):
+    FakeYFinance.requested_downloads = []
+    monkeypatch.setattr(
+        market_data_service,
+        "_get_relevant_assets",
+        lambda portfolio_id=None: [
+            {"asset_id": 1, "ticker": "AAPL"},
+            {"asset_id": 2, "ticker": "APPLE FUND", "yfinance_ticker": "AAPL"},
+        ],
+    )
+    monkeypatch.setattr(
+        market_data_service,
+        "_get_yfinance_module",
+        lambda: FakeYFinance,
+    )
+    monkeypatch.setattr(
+        market_data_service,
+        "_insert_new_price_rows",
+        lambda asset_id, price_rows: len(price_rows),
+    )
+
+    result = market_data_service.refresh_market_data(period="5d")
+
+    assert FakeYFinance.requested_downloads == [
+        {
+            "tickers": ["AAPL"],
+            "kwargs": {
+                "period": "5d",
+                "interval": "1d",
+                "auto_adjust": False,
+                "group_by": "ticker",
+                "threads": False,
+                "progress": False,
+            },
+        }
+    ]
+    assert result["updated_tickers"] == ["AAPL", "APPLE FUND"]
+    assert result["rows_inserted"] == 4
+
+
+def test_market_data_batch_download_retries_after_rate_limit(monkeypatch):
+    attempts = {"count": 0}
+    sleep_mock = Mock()
+
+    def flaky_download(tickers, period):
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise Exception("Too Many Requests. Rate Limited. Try after a while.")
+
+        return _fake_download_frame(tickers)
+
+    monkeypatch.setattr(market_data_service, "_download_tickers", flaky_download)
+    monkeypatch.setattr(market_data_service, "_sleep", sleep_mock)
+
+    histories, failures = market_data_service._download_ticker_histories(
+        ["AAPL"],
+        "5d",
+    )
+
+    assert failures == {}
+    assert "AAPL" in histories
+    assert attempts["count"] == 2
+    sleep_mock.assert_called_once()
