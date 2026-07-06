@@ -1,5 +1,7 @@
+from datetime import datetime, timezone
 from unittest.mock import Mock
 
+from app.database.repository import _coerce_audit_log_row
 from app.services.auth_service import create_access_token, hash_password
 
 
@@ -124,7 +126,9 @@ def test_admin_can_view_audit_logs(unauthenticated_client, monkeypatch):
         }
     ]
     mocked_get_logs = Mock(return_value=expected_logs)
+    mocked_audit = Mock()
     monkeypatch.setattr("app.routers.audit.get_audit_logs", mocked_get_logs)
+    monkeypatch.setattr("app.routers.audit.create_audit_log", mocked_audit)
 
     response = unauthenticated_client.get(
         "/api/audit-logs?limit=50&action=login",
@@ -140,3 +144,24 @@ def test_admin_can_view_audit_logs(unauthenticated_client, monkeypatch):
         status=None,
         limit=50,
     )
+    mocked_audit.assert_called_once()
+    assert mocked_audit.call_args.kwargs["action"] == "view_audit_logs"
+    assert mocked_audit.call_args.kwargs["status"] == "success"
+    assert mocked_audit.call_args.kwargs["user"]["role"] == "admin"
+    assert mocked_audit.call_args.kwargs["metadata"]["filters"] == {
+        "action": "login",
+        "user_email": None,
+        "resource_type": None,
+        "status": None,
+        "limit": 50,
+    }
+
+
+def test_audit_log_timestamp_is_returned_as_utc_when_database_value_is_naive():
+    row = {
+        "created_at": datetime(2026, 7, 6, 3, 11, 0),
+    }
+
+    coerced = _coerce_audit_log_row(row)
+
+    assert coerced["created_at"].tzinfo == timezone.utc

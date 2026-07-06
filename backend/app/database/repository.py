@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pandas as pd
 from sqlalchemy import text
 
@@ -183,8 +185,10 @@ def insert_audit_log(
     ip_address: str | None,
     user_agent: str | None,
     metadata: str | None,
+    created_at: datetime | None = None,
 ):
     ensure_audit_logs_table()
+    created_at = created_at or datetime.now(timezone.utc).replace(tzinfo=None)
 
     with engine.begin() as connection:
         connection.execute(
@@ -200,7 +204,8 @@ def insert_audit_log(
                     status,
                     ip_address,
                     user_agent,
-                    metadata
+                    metadata,
+                    created_at
                 )
                 VALUES (
                     :user_id,
@@ -212,7 +217,8 @@ def insert_audit_log(
                     :status,
                     :ip_address,
                     :user_agent,
-                    :metadata
+                    :metadata,
+                    :created_at
                 )
                 """
             ),
@@ -227,6 +233,7 @@ def insert_audit_log(
                 "ip_address": ip_address,
                 "user_agent": user_agent,
                 "metadata": metadata,
+                "created_at": created_at,
             },
         )
 
@@ -287,4 +294,15 @@ def list_audit_logs(
             params,
         ).mappings().all()
 
-    return [dict(row) for row in rows]
+    return [
+        _coerce_audit_log_row(dict(row))
+        for row in rows
+    ]
+
+
+def _coerce_audit_log_row(row: dict):
+    created_at = row.get("created_at")
+    if isinstance(created_at, datetime) and created_at.tzinfo is None:
+        row["created_at"] = created_at.replace(tzinfo=timezone.utc)
+
+    return row
