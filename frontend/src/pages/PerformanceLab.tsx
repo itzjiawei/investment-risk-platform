@@ -15,14 +15,23 @@ type BenchmarkResult = {
 function PerformanceLab() {
   const [result, setResult] = useState<BenchmarkResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   function runBenchmark() {
     setLoading(true);
+    setErrorMessage("");
+    setResult(null);
 
     axios
       .get(`${API_BASE_URL}/api/performance/large-benchmark`)
       .then((res) => {
         setResult(res.data);
+      })
+      .catch((error) => {
+        const detail = error.response?.data?.detail;
+        setErrorMessage(
+          detail || "Unable to run the benchmark. Please try again later."
+        );
       })
       .finally(() => {
         setLoading(false);
@@ -43,9 +52,13 @@ function PerformanceLab() {
         Pandas dataframe processing against DuckDB analytical SQL execution.
       </p>
 
-      <button className="primary-button" onClick={runBenchmark}>
+      <button className="primary-button" onClick={runBenchmark} disabled={loading}>
         {loading ? "Running Benchmark..." : "Run Large Dataset Benchmark"}
       </button>
+
+      {errorMessage && (
+        <p className="status-message">{errorMessage}</p>
+      )}
 
       {result && (
         <div className="stress-result">

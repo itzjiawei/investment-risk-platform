@@ -133,33 +133,18 @@ def seed_prices() -> int:
     rows = _load_csv_rows(DATA_DIR / "prices.csv")
 
     with engine.begin() as connection:
-        for row in rows:
-            connection.execute(
-                text(
-                    """
-                    UPDATE prices
-                    SET close_price = :close_price
-                    WHERE asset_id = :asset_id
-                        AND date = :date
-                    """
-                ),
-                row,
-            )
-            connection.execute(
-                text(
-                    """
-                    INSERT INTO prices (asset_id, date, close_price)
-                    SELECT :asset_id, :date, :close_price
-                    WHERE NOT EXISTS (
-                        SELECT 1
-                        FROM prices
-                        WHERE asset_id = :asset_id
-                            AND date = :date
-                    )
-                    """
-                ),
-                row,
-            )
+        connection.execute(
+            text(
+                """
+                INSERT INTO prices (asset_id, date, close_price)
+                VALUES (:asset_id, :date, :close_price)
+                ON CONFLICT (asset_id, date) DO UPDATE
+                SET close_price = EXCLUDED.close_price
+                WHERE prices.close_price IS DISTINCT FROM EXCLUDED.close_price
+                """
+            ),
+            rows,
+        )
 
     return len(rows)
 

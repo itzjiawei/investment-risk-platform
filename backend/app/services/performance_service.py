@@ -8,7 +8,7 @@ from app.database.repository import load_holdings, load_prices
 from app.services.portfolio_service import calculate_portfolio_value
 
 
-BASE_DIR = Path(__file__).resolve().parents[2]
+BASE_DIR = Path(__file__).resolve().parents[3]
 DATA_DIR = BASE_DIR / "data"
 
 
@@ -63,6 +63,18 @@ def compare_analytics_engines(portfolio_id: int):
 def run_large_dataset_benchmark():
     large_prices = DATA_DIR / "large_prices.csv"
     large_holdings = DATA_DIR / "large_holdings.csv"
+
+    missing_files = [
+        str(path)
+        for path in (large_prices, large_holdings)
+        if not path.exists()
+    ]
+
+    if missing_files:
+        raise FileNotFoundError(
+            "Large benchmark data files are missing: "
+            + ", ".join(missing_files)
+        )
 
     start = time.perf_counter()
 

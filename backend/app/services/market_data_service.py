@@ -486,60 +486,34 @@ def _insert_new_price_rows(
     asset_id: int,
     price_rows: list[dict[str, Any]],
 ) -> int:
-    existing_dates = _get_existing_price_dates(asset_id)
-    existing_rows = [
-        row
-        for row in price_rows
-        if row["date"] in existing_dates
-    ]
-    new_rows = [
-        row
-        for row in price_rows
-        if row["date"] not in existing_dates
-    ]
-
-    if not new_rows and not existing_rows:
+    if not price_rows:
         return 0
 
+    rows_to_upsert = [
+        {
+            **row,
+            "asset_id": asset_id,
+        }
+        for row in price_rows
+    ]
+
     with engine.begin() as connection:
-        if existing_rows:
-            connection.execute(
-                text(
-                    """
-                    UPDATE prices
-                    SET close_price = :close_price
-                    WHERE asset_id = :asset_id
-                        AND date = :date
-                    """
-                ),
-                existing_rows,
-            )
+        result = connection.execute(
+            text(
+                """
+                INSERT INTO prices (asset_id, date, close_price)
+                VALUES (:asset_id, :date, :close_price)
+                ON CONFLICT (asset_id, date) DO UPDATE
+                SET close_price = EXCLUDED.close_price
+                WHERE prices.close_price IS DISTINCT FROM EXCLUDED.close_price
+                RETURNING (xmax = 0) AS inserted
+                """
+            ),
+            rows_to_upsert,
+        )
+        rows = result.mappings().all()
 
-        if new_rows:
-            connection.execute(
-                text(
-                    """
-                    INSERT INTO prices (asset_id, date, close_price)
-                    VALUES (:asset_id, :date, :close_price)
-                    """
-                ),
-                new_rows,
-            )
-
-    return len(new_rows)
-
-
-def _get_existing_price_dates(asset_id: int) -> set[str]:
-    with engine.connect() as connection:
-        rows = connection.execute(
-            text("SELECT date FROM prices WHERE asset_id = :asset_id"),
-            {"asset_id": asset_id},
-        ).all()
-
-    return {
-        _to_date_string(row[0])
-        for row in rows
-    }
+    return sum(1 for row in rows if row["inserted"])
 
 
 def _to_date_string(value: Any) -> str:

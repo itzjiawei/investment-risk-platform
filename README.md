@@ -187,6 +187,13 @@ GET  /api/market-data/status
 
 The `assets` table keeps the display `ticker` and optional `yfinance_ticker`. Market refresh downloads data with `yfinance_ticker` when present, but stores prices by `asset_id`, so analytics can still join holdings to prices correctly.
 
+Historical close prices are stored in the `prices` table. The table is keyed by `asset_id` and `date`, which is the database equivalent of ticker/date uniqueness because tickers live in the `assets` table. Re-running a refresh for the same trading date uses PostgreSQL `ON CONFLICT (asset_id, date) DO UPDATE`, so the latest close price is updated in place instead of creating another row. New trading dates are inserted and older history is preserved.
+
+The price table has:
+
+- a uniqueness guard on `(asset_id, date)` through the composite primary key or migration-added unique constraint on older databases
+- an index on `date` for latest-date/status lookups
+
 The refresh service batches yfinance downloads and deduplicates yfinance symbols within each refresh. This avoids downloading the same ticker more than once when multiple assets map to the same market symbol. Batch downloads retry with exponential backoff when Yahoo Finance or yfinance raises a transient error such as HTTP 429 rate limiting. If a batched response contains no usable close prices for a ticker, the service retries that ticker through an individual yfinance history request before reporting it as failed.
 
 Retry settings:
@@ -465,6 +472,6 @@ POST /api/portfolio/compare-ai
 GET  /api/portfolio/{portfolio_id}/risk-report/pdf
 GET  /api/portfolio/{portfolio_id}/value-fast
 GET  /api/portfolio/{portfolio_id}/engine-comparison
-GET  /api/performance/benchmark
+GET  /api/performance/large-benchmark
 POST /api/notifications/send-report
 ```

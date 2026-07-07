@@ -5,6 +5,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     PrimaryKeyConstraint,
     Text,
@@ -57,6 +58,7 @@ class Price(Base):
     __tablename__ = "prices"
     __table_args__ = (
         PrimaryKeyConstraint("asset_id", "date"),
+        Index("ix_prices_date", "date"),
     )
 
     asset_id = Column(

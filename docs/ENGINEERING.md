@@ -57,7 +57,7 @@ The frontend currently uses page-level components rather than a shared component
 - `assets`: Asset metadata, display ticker, sector, country, and optional yfinance ticker.
 - `portfolios`: Portfolio identifiers and names.
 - `holdings`: Portfolio-to-asset quantities.
-- `prices`: Historical close prices keyed by `asset_id` and `date`.
+- `prices`: Historical close prices keyed by `asset_id` and `date`. Refreshes use PostgreSQL upsert semantics so a repeated refresh updates the existing date row and only new trading dates add rows.
 - `users`: Login users, hashed passwords, active flag, and RBAC role.
 - `audit_logs`: Security and operations audit trail for login, refresh, export, AI, forbidden access, and admin actions.
 

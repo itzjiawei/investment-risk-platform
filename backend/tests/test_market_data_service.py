@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from pathlib import Path
 from unittest.mock import Mock
 
 import pandas as pd
@@ -61,6 +62,48 @@ class FakeYFinance:
         return _fake_download_frame(requested_tickers)
 
 
+class FakeUpsertResult:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def mappings(self):
+        return self
+
+    def all(self):
+        return self.rows
+
+
+class FakeUpsertConnection:
+    def __init__(self, returned_rows):
+        self.returned_rows = returned_rows
+        self.executed_sql = None
+        self.executed_params = None
+
+    def execute(self, statement, params):
+        self.executed_sql = str(statement)
+        self.executed_params = params
+        return FakeUpsertResult(self.returned_rows)
+
+
+class FakeEngineBegin:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def __enter__(self):
+        return self.connection
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+
+class FakeUpsertEngine:
+    def __init__(self, returned_rows):
+        self.connection = FakeUpsertConnection(returned_rows)
+
+    def begin(self):
+        return FakeEngineBegin(self.connection)
+
+
 def test_fetch_price_rows_uses_mocked_yfinance(monkeypatch):
     FakeTicker.requested_tickers = []
     fake_yfinance = SimpleNamespace(Ticker=FakeTicker)
@@ -89,6 +132,79 @@ def test_fetch_price_rows_uses_mocked_yfinance(monkeypatch):
         },
     ]
     assert FakeTicker.requested_tickers == ["AAPL"]
+
+
+def test_price_upsert_inserts_first_refresh_rows(monkeypatch):
+    fake_engine = FakeUpsertEngine(
+        [
+            {"inserted": True},
+            {"inserted": True},
+        ]
+    )
+    monkeypatch.setattr(market_data_service, "engine", fake_engine)
+
+    inserted_count = market_data_service._insert_new_price_rows(
+        1,
+        [
+            {"asset_id": 1, "date": "2026-07-06", "close_price": 100.0},
+            {"asset_id": 1, "date": "2026-07-07", "close_price": 101.0},
+        ],
+    )
+
+    assert inserted_count == 2
+    assert "ON CONFLICT (asset_id, date) DO UPDATE" in fake_engine.connection.executed_sql
+    assert "RETURNING (xmax = 0) AS inserted" in fake_engine.connection.executed_sql
+    assert len(fake_engine.connection.executed_params) == 2
+
+
+def test_price_upsert_updates_same_day_without_increasing_insert_count(monkeypatch):
+    fake_engine = FakeUpsertEngine([{"inserted": False}])
+    monkeypatch.setattr(market_data_service, "engine", fake_engine)
+
+    inserted_count = market_data_service._insert_new_price_rows(
+        1,
+        [{"asset_id": 1, "date": "2026-07-07", "close_price": 102.0}],
+    )
+
+    assert inserted_count == 0
+    assert "WHERE prices.close_price IS DISTINCT FROM EXCLUDED.close_price" in (
+        fake_engine.connection.executed_sql
+    )
+
+
+def test_price_upsert_inserts_new_trading_day(monkeypatch):
+    fake_engine = FakeUpsertEngine([{"inserted": True}])
+    monkeypatch.setattr(market_data_service, "engine", fake_engine)
+
+    inserted_count = market_data_service._insert_new_price_rows(
+        1,
+        [{"asset_id": 1, "date": "2026-07-08", "close_price": 103.0}],
+    )
+
+    assert inserted_count == 1
+
+
+def test_price_upsert_duplicate_refresh_does_not_increase_row_count(monkeypatch):
+    fake_engine = FakeUpsertEngine([])
+    monkeypatch.setattr(market_data_service, "engine", fake_engine)
+
+    inserted_count = market_data_service._insert_new_price_rows(
+        1,
+        [{"asset_id": 1, "date": "2026-07-08", "close_price": 103.0}],
+    )
+
+    assert inserted_count == 0
+
+
+def test_price_persistence_migration_adds_uniqueness_and_indexes():
+    migration = Path(
+        "alembic/versions/20260707_0002_price_persistence_constraints.py"
+    ).read_text(encoding="utf-8")
+
+    assert "PARTITION BY asset_id, date" in migration
+    assert "UNIQUE (asset_id, date)" in migration
+    assert "ix_prices_date" in migration
+    assert "DROP INDEX IF EXISTS ix_prices_asset_date" in migration
 
 
 def test_refresh_market_data_uses_yfinance_ticker_mapping(monkeypatch):
